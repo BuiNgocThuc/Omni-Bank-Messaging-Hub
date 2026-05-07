@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile default="true" name="Default" enabled="true" />
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="audit-log-service" />
+        <module name="currency-exchange-service" />
+        <module name="account-ledger-service" />
+        <module name="common" />
+        <module name="payment-gateway-service" />
+      </profile>
+    </annotationProcessing>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="account-ledger-service" options="" />
+      <module name="audit-log-service" options="" />
+      <module name="common" options="" />
+      <module name="currency-exchange-service" options="" />
+      <module name="payment-gateway-service" options="" />
+    </option>
+  </component>
+</project>
