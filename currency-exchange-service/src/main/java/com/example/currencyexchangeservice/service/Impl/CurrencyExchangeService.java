@@ -37,22 +37,15 @@ public class CurrencyExchangeService implements ICurrencyExchangeService {
                 payload.getAmount()             // amount
         );
 
-        // amount x rate = converted
-        BigDecimal converted = payload.getAmount()
-                .multiply(rate)
-                .setScale(4, RoundingMode.HALF_UP); //làm tròn lên
-
         // Update message
-        payload.setExchangeRate(rate);
-        payload.setConvertedAmount(converted);
-        payload.setStatus(TransactionStatus.PROCESSED);
+        payload.setConvertedAmount(rate);
+        payload.setStatus(TransactionStatus.PROCESSED.name());
         payload.setProcessedAt(LocalDateTime.now());
 
-        log.info(" TX {} | {} {} → {} {} (rate={})",
+        log.info(" TX {} | {} {} → {} {}",
                 payload.getTransactionId(),
                 payload.getAmount(), payload.getSourceCurrency(),
-                converted, payload.getTargetCurrency(),
-                rate);
+                rate, payload.getTargetCurrency());
 
         return payload;
     }

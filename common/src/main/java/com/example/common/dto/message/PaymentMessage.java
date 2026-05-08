@@ -19,9 +19,8 @@ public class PaymentMessage implements Serializable {
     private BigDecimal amount;
     private String sourceCurrency;
     private String targetCurrency;
-    private BigDecimal exchangeRate;
     private BigDecimal convertedAmount;
-    private TransactionStatus status;
+    private String status;
     private LocalDateTime createdAt;
     private LocalDateTime processedAt;
 }

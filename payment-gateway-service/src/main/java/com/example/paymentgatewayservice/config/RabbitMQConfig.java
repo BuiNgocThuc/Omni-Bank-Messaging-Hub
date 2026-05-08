@@ -6,6 +6,7 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -42,5 +43,25 @@ public class RabbitMQConfig {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(messageConverter());
         return template;
+    }
+
+
+    @Bean
+    public FanoutExchange auditFanoutExchange() {
+        return ExchangeBuilder
+                .fanoutExchange(RabbitMQConstants.FANOUT_AUDIT_EXCHANGE)
+                .durable(true)
+                .build();
+    }
+
+    @Bean
+    public Queue auditLogQueue() {
+        return QueueBuilder.durable(RabbitMQConstants.QUEUE_AUDIT_LOG).build();
+    }
+
+
+    @Bean
+    public Binding bindingAuditFanout(@Qualifier("auditLogQueue") Queue auditLogQueue, FanoutExchange auditFanoutExchange) {
+        return BindingBuilder.bind(auditLogQueue).to(auditFanoutExchange);
     }
 }

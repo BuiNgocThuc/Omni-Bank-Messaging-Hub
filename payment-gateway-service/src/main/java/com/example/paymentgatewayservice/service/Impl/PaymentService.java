@@ -33,11 +33,11 @@ public class PaymentService implements IPaymentService {
     // validate request -> khởi tạo message -> gửi qua currency service
     @Override
     public ApiResponse<String> initiatePayment(PaymentRequest request) {
+
+        try {
         //validate request
+            String txId = "TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         validatePaymentRequest(request);
-
-        String txId = "TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-
         PaymentMessage message = PaymentMessage.builder()
                 .transactionId(txId)
                 .fromAccount(request.getFromAccount())
@@ -45,32 +45,60 @@ public class PaymentService implements IPaymentService {
                 .amount(request.getAmount())
                 .sourceCurrency(request.getSourceCurrency().name())
                 .targetCurrency(request.getTargetCurrency().name())
-                .status(TransactionStatus.PENDING)
+                .status(TransactionStatus.PENDING.name())
                 .createdAt(LocalDateTime.now())
                 .build();
 
-      try {
           rabbitTemplate.convertAndSend(
                   RabbitMQConstants.TOPIC_EXCHANGE,
                   RabbitMQConstants.ROUTING_CONVERT,
                   message
           );
+          sendAuditLog(message,true,"");
+            log.info("Published payment [{}] with key=pay.convert", txId);
+            return ApiResponse.success(
+                    ApiCode.SUCCESS,
+                    "Payment is being processed - initiatePayment successfully!",
+                    txId,
+                    "/api/v1/payments"
+            );
       }catch (AmqpException e) {
           throw new BusinessException(
                   HttpStatus.SERVICE_UNAVAILABLE,
                   "BROKER_UNAVAILABLE",
                   "Message broker is currently unavailable, please retry later");
+
       }
 
-        log.info("Published payment [{}] with key=pay.convert", txId);
-        return ApiResponse.success(
-                ApiCode.SUCCESS,
-                "Payment is being processed - initiatePayment successfully!",
-                txId,
-                "/api/v1/payments"
-        );
+
     }
 
+
+    private void sendAuditLog(PaymentMessage payload, boolean success, String messageError) {
+        com.example.common.dto.message.AuditEvent auditEvent = com.example.common.dto.message.AuditEvent
+                .builder()
+                .transactionId(payload.getTransactionId())
+                .serviceName("payment-gateway")
+                .eventType(success ? "EXCHANGE_COMPLETED" : "EXCHANGE_FAILED")
+                .status(success? "COMPLETED":"FAILED")
+                .fromAccount(payload.getFromAccount())
+                .toAccount(payload.getToAccount())
+                .amount(payload.getAmount())
+                .sourceCurrency(payload.getSourceCurrency())
+                .targetCurrency(payload.getTargetCurrency())
+                //        .exchangeRate(BigDecimal.ONE)
+                .convertedAmount(payload.getConvertedAmount())
+                .description(success ?"exchange thanh cong" : "exchange that bai roi")
+                .errorMessage(success ?"no" : messageError)
+                .eventTime(LocalDateTime.now())
+                .build();
+
+        rabbitTemplate.convertAndSend(
+                RabbitMQConstants.FANOUT_AUDIT_EXCHANGE,
+                "",
+                auditEvent
+        );
+    }
 
     private void validatePaymentRequest(PaymentRequest request) {
         //cung account

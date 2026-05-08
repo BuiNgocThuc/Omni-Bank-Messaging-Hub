@@ -5,8 +5,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "ACCOUNT")
@@ -29,4 +32,12 @@ public class Account {
 
     @Column(name = "CURRENCY", length = 3, nullable = false)
     private String currency;
+
+    @Column
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
+    @Column(name = "UPDATED_AT")
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }

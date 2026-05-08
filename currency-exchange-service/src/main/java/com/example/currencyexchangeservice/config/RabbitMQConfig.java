@@ -6,6 +6,7 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -28,16 +29,9 @@ public class RabbitMQConfig {
                 .build();
     }
 
-//    @Bean
-//    public Queue accountUpdateQueue() {
-//        return QueueBuilder
-//                .durable(RabbitMQConstants.QUEUE_ACCOUNT_UPDATE)
-//                .build();
-//    }
-
     @Bean
     public Binding bindingConvert(
-            Queue exchangeProcessQueue,
+            @Qualifier("exchangeProcessQueue")  Queue exchangeProcessQueue,
             TopicExchange topicExchange) {
 
         return BindingBuilder
@@ -45,17 +39,23 @@ public class RabbitMQConfig {
                 .to(topicExchange)
                 .with(RabbitMQConstants.ROUTING_CONVERT);
     }
-//
-//    @Bean
-//    public Binding bindingPayExecute(
-//            Queue accountUpdateQueue,
-//            TopicExchange topicExchange) {
-//
-//        return BindingBuilder
-//                .bind(accountUpdateQueue)
-//                .to(topicExchange)
-//                .with(RabbitMQConstants.ROUTING_EXECUTE);
-//    }
+
+    @Bean
+    public Queue accountUpdateQueue() {
+        return QueueBuilder
+                .durable(RabbitMQConstants.QUEUE_ACCOUNT_UPDATE)
+                .build();
+    }
+    @Bean
+    public Binding bindingPayExecute(
+            @Qualifier("accountUpdateQueue") Queue accountUpdateQueue,
+            TopicExchange topicExchange) {
+
+        return BindingBuilder
+                .bind(accountUpdateQueue)
+                .to(topicExchange)
+                .with(RabbitMQConstants.ROUTING_EXECUTE);
+    }
 
 
     @Bean

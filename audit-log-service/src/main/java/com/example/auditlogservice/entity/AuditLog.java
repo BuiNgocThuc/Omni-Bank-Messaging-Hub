@@ -31,8 +31,7 @@ public class AuditLog {
     private String transactionId;
 
     @Column(name = "EVENT_STATUS", length = 20, nullable = false)
-    @Enumerated
-    private TransactionStatus eventStatus;          // PENDING / PROCESSED / COMPLETED / FAILED
+    private String eventStatus;          // PENDING / PROCESSED / COMPLETED / FAILED
 
     @Column(name = "ROUTING_KEY", length = 100)
     private String routingKey;           // pay.usd.convert / pay.usd.execute ...
@@ -42,6 +41,21 @@ public class AuditLog {
 
     @Column(name = "TO_ACCOUNT", length = 50)
     private String toAccount;
+
+    @Column(name = "SERVICE_NAME", length = 50)
+    private String serviceName;
+
+    @Column(name = "EVENT_TYPE", length = 50)
+    private String eventType;
+
+    @Column(name = "DESCRIPTION", length = 50)
+    private String description;          // Mô tả thêm cho event
+
+    @Column(name = "ERROR_MESSAGE", length = 50)
+    private String errorMessage;         // Nếu có lỗi
+
+    @Column(name = "STATUS", length = 50)
+    private String status;
 
     @Column(name = "AMOUNT", precision = 19, scale = 4)
     private BigDecimal amount;
@@ -60,6 +74,9 @@ public class AuditLog {
 
     @Column(name = "MESSAGE_PAYLOAD", length = 4000)
     private String messagePayload;       // Snapshot JSON (optional)
+
+    @Column(name = "EVENT_TIME", nullable = false)
+    private LocalDateTime eventTime;
 
     @Column(name = "LOGGED_AT", nullable = false)
     @CreationTimestamp

@@ -12,9 +12,9 @@ import org.springframework.context.annotation.Configuration;
 public class RabbitMQConfig {
 
     @Bean
-    public TopicExchange topicExchange() {
+    public FanoutExchange auditFanoutExchange() {
         return ExchangeBuilder
-                .topicExchange(RabbitMQConstants.TOPIC_EXCHANGE)
+                .fanoutExchange(RabbitMQConstants.FANOUT_AUDIT_EXCHANGE)
                 .durable(true)
                 .build();
     }
@@ -24,20 +24,14 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(RabbitMQConstants.QUEUE_AUDIT_LOG).build();
     }
 
+
     @Bean
-    public Binding bindingAuditAll(Queue auditLogQueue, TopicExchange topicExchange) {
-        return BindingBuilder.bind(auditLogQueue)
-                .to(topicExchange)
-                .with(RabbitMQConstants.BINDING_AUDIT_ALL);   // "#" de đây đi tí làm
+    public Binding bindingAuditFanout(Queue auditLogQueue, FanoutExchange auditFanoutExchange) {
+        return BindingBuilder.bind(auditLogQueue).to(auditFanoutExchange);
     }
 
     @Bean
     public MessageConverter messageConverter() {
         return new JacksonJsonMessageConverter();
-    }
-
-    @Bean
-    public ObjectMapper objectMapper() {
-        return new ObjectMapper();
     }
 }
