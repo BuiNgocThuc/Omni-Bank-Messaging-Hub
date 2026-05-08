@@ -27,7 +27,7 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding bindingConvert(Queue exchangeProcessQueue, TopicExchange topicExchange) {
+    public Binding bindingConvert(@Qualifier("exchangeProcessQueue")  Queue exchangeProcessQueue, TopicExchange topicExchange) {
         return BindingBuilder.bind(exchangeProcessQueue)
                 .to(topicExchange)
                 .with(RabbitMQConstants.ROUTING_CONVERT);
