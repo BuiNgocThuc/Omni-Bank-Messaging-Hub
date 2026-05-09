@@ -31,21 +31,20 @@ public class CurrencyExchangeService implements ICurrencyExchangeService {
         }
 
         // Gọi API external của fxrate với 3 params lấy từ PaymentMessage
-        BigDecimal rate = fxRatesClient.getRate(
+        BigDecimal convertedAmount = fxRatesClient.getRate(
                 payload.getSourceCurrency(),    // base
                 payload.getTargetCurrency(),    // currencies (target)
                 payload.getAmount()             // amount
         );
 
         // Update message
-        payload.setConvertedAmount(rate);
-        payload.setStatus(TransactionStatus.PROCESSED.name());
-        payload.setProcessedAt(LocalDateTime.now());
+        payload.setConvertedAmount(convertedAmount);
+        payload.setTransactionStatus(TransactionStatus.EXCHANGED.name());
 
         log.info(" TX {} | {} {} → {} {}",
                 payload.getTransactionId(),
                 payload.getAmount(), payload.getSourceCurrency(),
-                rate, payload.getTargetCurrency());
+                convertedAmount, payload.getTargetCurrency());
 
         return payload;
     }
@@ -62,6 +61,7 @@ public class CurrencyExchangeService implements ICurrencyExchangeService {
                 || payload.getTargetCurrency() == null) {
             throw new IllegalArgumentException("Missing currency");
         }
+
         if (payload.getSourceCurrency().equalsIgnoreCase(payload.getTargetCurrency())) {
             throw new IllegalArgumentException("Source and target currency must be different");
         }

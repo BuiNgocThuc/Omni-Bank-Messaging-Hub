@@ -32,7 +32,7 @@ public class AccountDataInitializer implements ApplicationRunner {
                         .ownerName("Nguyen Van A")
                         .balance(new BigDecimal("10000.0000"))
                         .currency("USD")
-                        .createdAt(now)
+                        .countryCode("US")
                         .updatedAt(now)
                         .build(),
 
@@ -41,7 +41,7 @@ public class AccountDataInitializer implements ApplicationRunner {
                         .ownerName("Tran Thi B")
                         .balance(new BigDecimal("5000000.0000"))
                         .currency("VND")
-                        .createdAt(now)
+                        .countryCode("VN")
                         .updatedAt(now)
                         .build(),
 
@@ -50,7 +50,7 @@ public class AccountDataInitializer implements ApplicationRunner {
                         .ownerName("Le Van C")
                         .balance(new BigDecimal("5000.0000"))
                         .currency("EUR")
-                        .createdAt(now)
+                        .countryCode("UK")
                         .updatedAt(now)
                         .build()
         );

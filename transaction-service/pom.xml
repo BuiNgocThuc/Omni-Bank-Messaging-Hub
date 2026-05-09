@@ -8,11 +8,11 @@
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
-    <groupId>com.example</groupId>
-    <artifactId>account-ledger-service</artifactId>
+    <groupId>org.example</groupId>
+    <artifactId>transaction-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>account-ledger-service</name>
-    <description>account-ledger-service</description>
+    <name>transaction-service</name>
+    <description>transaction-service</description>
     <url/>
     <licenses>
         <license/>
@@ -30,6 +30,7 @@
         <java.version>21</java.version>
     </properties>
     <dependencies>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -68,6 +69,22 @@
             <groupId>com.oracle.database.jdbc</groupId>
             <artifactId>ojdbc11</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+            <version>5.0.1</version>
+            <scope>compile</scope>
+        </dependency>
+
     </dependencies>
 
     <build>

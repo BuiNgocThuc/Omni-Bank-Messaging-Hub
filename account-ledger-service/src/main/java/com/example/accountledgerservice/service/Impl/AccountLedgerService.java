@@ -1,15 +1,16 @@
 package com.example.accountledgerservice.service.Impl;
 
 import com.example.accountledgerservice.entity.TransactionHistory;
+import com.example.accountledgerservice.enums.EntryType;
 import com.example.accountledgerservice.repository.AccountRepository;
 import com.example.accountledgerservice.repository.TransactionHistoryRepository;
 import com.example.accountledgerservice.service.IAccountLedgerService;
 import com.example.common.dto.message.PaymentMessage;
 import com.example.common.enums.TransactionStatus;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -23,9 +24,11 @@ public class AccountLedgerService implements IAccountLedgerService {
 
     @Override
     @Transactional
-    public void executePayment(PaymentMessage payload) {
+    public void executeLedgerAndUpdateBalance(PaymentMessage payload) {
         log.info("[LEDGER] Processing TX: {}", payload.getTransactionId());
-
+        if(!payload.getTransactionStatus().equals(TransactionStatus.EXCHANGED.name())){
+            throw new IllegalArgumentException("Invalid status payload - must be EXCHANGED");
+        }
         BigDecimal debitAmount = payload.getAmount();
         BigDecimal creditAmount = payload.getConvertedAmount() != null
                 ? payload.getConvertedAmount()
@@ -66,19 +69,29 @@ public class AccountLedgerService implements IAccountLedgerService {
     }
 
     private void saveHistory(PaymentMessage payload) {
-        TransactionHistory history = TransactionHistory.builder()
+        TransactionHistory debitEntry = TransactionHistory.builder()
                 .transactionId(payload.getTransactionId())
-                .fromAccount(payload.getFromAccount())
-                .toAccount(payload.getToAccount())
-                .amount(payload.getAmount())
-                .sourceCurrency(payload.getSourceCurrency())
-                .targetCurrency(payload.getTargetCurrency())
-                .convertedAmount(payload.getConvertedAmount())
-                .status(TransactionStatus.COMPLETED.name())
-                .completedAt(LocalDateTime.now())
+                .accountNumber(payload.getFromAccount())
+                .amount(payload.getAmount().negate())
+                .entryType(EntryType.DEBIT)
+                .description("Transfer to " + payload.getToAccount())
                 .build();
 
-        historyRepository.save(history);
+        BigDecimal creditAmount = payload.getConvertedAmount() != null
+                ? payload.getConvertedAmount()
+                : payload.getAmount();
+
+        TransactionHistory creditEntry = TransactionHistory.builder()
+                .transactionId(payload.getTransactionId())
+                .accountNumber(payload.getToAccount())
+                .amount(creditAmount)
+                .entryType(EntryType.CREDIT)
+                .description("Transfer from " + payload.getFromAccount())
+                .build();
+
+        historyRepository.save(debitEntry);
+        historyRepository.save(creditEntry);
+
         log.debug("[LEDGER] History saved for TX {}", payload.getTransactionId());
     }
 }

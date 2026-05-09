@@ -1,9 +1,6 @@
 package com.example.accountledgerservice.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -21,6 +18,9 @@ import java.time.LocalDateTime;
 public class Account {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
     @Column(name = "ACCOUNT_NUMBER", length = 50)
     private String accountNumber;
 
@@ -33,9 +33,8 @@ public class Account {
     @Column(name = "CURRENCY", length = 3, nullable = false)
     private String currency;
 
-    @Column
-    @CreationTimestamp
-    private LocalDateTime createdAt;
+    @Column(name = "COUNTRY_CODE", length = 3, nullable = false)
+    private String countryCode;
 
     @Column(name = "UPDATED_AT")
     @UpdateTimestamp

@@ -26,9 +26,4 @@ public class PaymentRequest {
     @Positive(message = "amount must be greater than 0")
     private BigDecimal amount;
 
-    @NotNull(message = "sourceCurrency is required")
-    private Currency sourceCurrency;
-
-    @NotNull(message = "targetCurrency is required")
-    private Currency targetCurrency;
 }

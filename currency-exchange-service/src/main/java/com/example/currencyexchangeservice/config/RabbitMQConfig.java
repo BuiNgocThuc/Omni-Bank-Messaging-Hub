@@ -43,7 +43,7 @@ public class RabbitMQConfig {
     @Bean
     public Queue accountUpdateQueue() {
         return QueueBuilder
-                .durable(RabbitMQConstants.QUEUE_ACCOUNT_UPDATE)
+                .durable(RabbitMQConstants.QUEUE_LEDGER_AND_BALANCE_UPDATE)
                 .build();
     }
     @Bean
@@ -54,9 +54,26 @@ public class RabbitMQConfig {
         return BindingBuilder
                 .bind(accountUpdateQueue)
                 .to(topicExchange)
-                .with(RabbitMQConstants.ROUTING_EXECUTE);
+                .with(RabbitMQConstants.ROUTING_LEDGER_AND_BALANCE);
+    }
+    @Bean
+    public Binding bindingAccountUpdate(@Qualifier("accountUpdateQueue") Queue accountUpdateQueue, TopicExchange topicExchange) {
+        return BindingBuilder.bind(accountUpdateQueue)
+                .to(topicExchange)
+                .with(RabbitMQConstants.ROUTING_LEDGER_AND_BALANCE);
     }
 
+    @Bean
+    public Queue transactionUpdateQueue() {
+        return new Queue(RabbitMQConstants.QUEUE_TRANSACTION_UPDATE, true);
+    }
+
+    @Bean
+    public Binding transactionUpdateBinding(@Qualifier("transactionUpdateQueue") Queue transactionUpdateQueue, TopicExchange topicExchange) {
+        return BindingBuilder.bind(transactionUpdateQueue)
+                .to(topicExchange)
+                .with(RabbitMQConstants.ROUTING_TRANSACTION_UPDATE);
+    }
 
     @Bean
     public MessageConverter messageConverter() {

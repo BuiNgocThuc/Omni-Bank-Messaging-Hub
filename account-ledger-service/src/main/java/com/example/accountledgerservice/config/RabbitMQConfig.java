@@ -4,6 +4,7 @@ import com.example.common.constant.RabbitMQConstants;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,18 +21,26 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue accountUpdateQueue() {
-        return QueueBuilder.durable(RabbitMQConstants.QUEUE_ACCOUNT_UPDATE).build();
+        return QueueBuilder.durable(RabbitMQConstants.QUEUE_LEDGER_AND_BALANCE_UPDATE).build();
     }
 
-    /**
-     * Bind queue với routing key "pay.execute"
-     * → Khi Service B publish key này, message vào queue của Service C
-     */
     @Bean
-    public Binding bindingAccountUpdate(Queue accountUpdateQueue, TopicExchange topicExchange) {
+    public Binding bindingAccountUpdate(@Qualifier("accountUpdateQueue") Queue accountUpdateQueue, TopicExchange topicExchange) {
         return BindingBuilder.bind(accountUpdateQueue)
                 .to(topicExchange)
-                .with(RabbitMQConstants.ROUTING_EXECUTE);
+                .with(RabbitMQConstants.ROUTING_LEDGER_AND_BALANCE);
+    }
+
+    @Bean
+    public Queue transactionUpdateQueue() {
+        return new Queue(RabbitMQConstants.QUEUE_TRANSACTION_UPDATE, true);
+    }
+
+    @Bean
+    public Binding transactionUpdateBinding(@Qualifier("transactionUpdateQueue") Queue transactionUpdateQueue, TopicExchange topicExchange) {
+        return BindingBuilder.bind(transactionUpdateQueue)
+                .to(topicExchange)
+                .with(RabbitMQConstants.ROUTING_TRANSACTION_UPDATE);
     }
 
     @Bean

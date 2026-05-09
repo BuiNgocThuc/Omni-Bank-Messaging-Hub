@@ -28,48 +28,45 @@ public class AccountLedgerListener {
     private final IAccountLedgerService iAccountLedgerService;
     private final RabbitTemplate rabbitTemplate;
 
-    @RabbitListener(queues = RabbitMQConstants.QUEUE_ACCOUNT_UPDATE)
+    @RabbitListener(queues = RabbitMQConstants.QUEUE_LEDGER_AND_BALANCE_UPDATE)
     public void onMessage(PaymentMessage payload, Message message, Channel channel) throws Exception {
         long deliveryTag = message.getMessageProperties().getDeliveryTag();
         log.info("[LEDGER] Received TX: {}", payload.getTransactionId());
         try {
-            iAccountLedgerService.executePayment(payload);
-            channel.basicAck(deliveryTag, false);
+            iAccountLedgerService.executeLedgerAndUpdateBalance(payload);
             log.info("[LEDGER] TX {} acknowledged", payload.getTransactionId());
 
-            sendAuditLog(payload,true);
+            PaymentMessage successMessage = PaymentMessage.builder()
+                    .transactionId(payload.getTransactionId())
+                    .transactionStatus(TransactionStatus.COMPLETED_LEDGER.name())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConstants.TOPIC_EXCHANGE,
+                    RabbitMQConstants.ROUTING_TRANSACTION_UPDATE,
+                    successMessage
+            );
+            channel.basicAck(deliveryTag, false);
 
         } catch (Exception e) {
             log.error("[LEDGER] Error TX {}: {}",
                     payload.getTransactionId(), e.getMessage(), e);
-            // Happy case: drop để không loop
+            PaymentMessage failedMsg = PaymentMessage.builder()
+                    .transactionId(payload.getTransactionId())
+                    .transactionStatus(TransactionStatus.FAILED_LEDGER.name())
+                    .failureReason(e.getMessage())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConstants.TOPIC_EXCHANGE,
+                    RabbitMQConstants.ROUTING_TRANSACTION_UPDATE,
+                    failedMsg
+            );
+
             channel.basicNack(deliveryTag, false, false);
-            sendAuditLog(payload,false);
         }
     }
 
-    private void sendAuditLog(PaymentMessage payload, boolean success) {
-        AuditEvent auditEvent = AuditEvent
-                .builder()
-                .transactionId(payload.getTransactionId())
-                .serviceName("Account-ledger")
-                .eventType(success ? "PAYMENT_COMPLETED" : "PAYMENT_FAILED")
-                .status(success? "COMPLETED":"FAILED")
-                .fromAccount(payload.getFromAccount())
-                .toAccount(payload.getToAccount())
-                .amount(payload.getAmount())
-                .sourceCurrency(payload.getSourceCurrency())
-                .targetCurrency(payload.getTargetCurrency())
-                //.exchangeRate(BigDecimal.ONE)
-                .convertedAmount(payload.getConvertedAmount())
-                .description(success ?"thanh toan thanh cong" : "that bai roi")
-                .errorMessage(success ?"no" : "error roi")
-                .eventTime(LocalDateTime.now())
-                .build();
-
-        rabbitTemplate.convertAndSend(
-                RabbitMQConstants.FANOUT_AUDIT_EXCHANGE,
-                auditEvent
-        );
-    }
 }

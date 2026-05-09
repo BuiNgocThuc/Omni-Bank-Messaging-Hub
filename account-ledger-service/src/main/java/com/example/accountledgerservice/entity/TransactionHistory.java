@@ -1,6 +1,7 @@
 package com.example.accountledgerservice.entity;
 
 
+import com.example.accountledgerservice.enums.EntryType;
 import com.example.common.enums.TransactionStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -22,33 +23,26 @@ import java.time.LocalDateTime;
 public class TransactionHistory {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
     @Column(name = "TRANSACTION_ID", length = 50)
     private String transactionId;
 
-    @Column(name = "FROM_ACCOUNT", length = 50, nullable = false)
-    private String fromAccount;
-
-    @Column(name = "TO_ACCOUNT", length = 50, nullable = false)
-    private String toAccount;
+    @Column(name = "ACCOUNT_NUMBER", length = 50, nullable = false)
+    private String accountNumber;
 
     @Column(name = "AMOUNT", precision = 19, scale = 4, nullable = false)
     private BigDecimal amount;
 
-    @Column(name = "SOURCE_CURRENCY", length = 3, nullable = false)
-    private String sourceCurrency;
+    @Column(name = "ENTRY_TYPE", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private EntryType entryType;
 
-    @Column(name = "TARGET_CURRENCY", length = 3, nullable = false)
-    private String targetCurrency;
+    @Column(name = "DESCRIPTION", length = 50)
+    private String description;
 
-    @Column(name = "CONVERTED_AMOUNT", precision = 19, scale = 4)
-    private BigDecimal convertedAmount;
-
-    @Column(name = "STATUS", length = 20, nullable = false)
-    private String status;
-
-    @Column(name = "FAILURE_REASON", length = 500)
-    private String failureReason;
-
-    @Column(name = "COMPLETED_AT", nullable = false)
-    private LocalDateTime completedAt;
+    @CreationTimestamp
+    @Column(name = "CREATED_AT", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 }

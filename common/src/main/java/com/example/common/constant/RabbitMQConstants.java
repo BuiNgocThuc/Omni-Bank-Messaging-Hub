@@ -2,14 +2,18 @@ package com.example.common.constant;
 
 public class RabbitMQConstants {
 
-    public static final String TOPIC_EXCHANGE = "x.banking.topic";
+    public static final String TOPIC_EXCHANGE = "omni.banking.topic";
 
-    public static final String FANOUT_AUDIT_EXCHANGE = "x.banking.audit";
+
 
     public static final String QUEUE_EXCHANGE_PROCESS = "q.exchange.process";
-    public static final String QUEUE_ACCOUNT_UPDATE = "q.account.update";
-    public static final String QUEUE_AUDIT_LOG = "q.audit.log";
+    public static final String QUEUE_LEDGER_AND_BALANCE_UPDATE = "q.account.update";
+
+    public static final String QUEUE_TRANSACTION_UPDATE = "q.transaction.update";
+
 
     public static final String ROUTING_CONVERT = "pay.convert";
-    public static final String ROUTING_EXECUTE = "pay.execute";
+    public static final String ROUTING_LEDGER_AND_BALANCE = "pay.ledger";
+    public static final String ROUTING_TRANSACTION_UPDATE = "pay.transaction.update";
+
 }

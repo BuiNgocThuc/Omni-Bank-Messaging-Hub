@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Repository
 public interface AccountRepository extends JpaRepository<Account, String> {
@@ -22,4 +23,6 @@ public interface AccountRepository extends JpaRepository<Account, String> {
     @Query("UPDATE Account a SET a.balance = a.balance + :amount where a.accountNumber = :accountNumber and a.balance > 0")
     int credit(@Param("accountNumber") String accountNumber,
                @Param("amount") BigDecimal amount);
+
+    List<Account> findAllByAccountNumberIn(List<String> accountNumbers);
 }

@@ -7,13 +7,16 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="audit-log-service" />
+        <module name="transaction-service" />
         <module name="currency-exchange-service" />
         <module name="account-ledger-service" />
         <module name="common" />
-        <module name="payment-gateway-service" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="audit-log-service" target="1.8" />
+      <module name="payment-gateway-service" target="1.8" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
@@ -22,6 +25,7 @@
       <module name="common" options="" />
       <module name="currency-exchange-service" options="" />
       <module name="payment-gateway-service" options="" />
+      <module name="transaction-service" options="" />
     </option>
   </component>
 </project>

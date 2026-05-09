@@ -2,6 +2,7 @@ package com.example.currencyexchangeservice.listener;
 
 import com.example.common.constant.RabbitMQConstants;
 import com.example.common.dto.message.PaymentMessage;
+import com.example.common.enums.TransactionStatus;
 import com.example.currencyexchangeservice.service.ICurrencyExchangeService;
 import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
@@ -35,21 +36,20 @@ public class CurrencyExchangeListener {
             PaymentMessage processed = exchangeService.processExchange(payload);
 
 
-// forward sang account ledger để payment
+            // thành công -> forward sang account ledger để payment
             rabbitTemplate.convertAndSend(
                     RabbitMQConstants.TOPIC_EXCHANGE,
-                    RabbitMQConstants.ROUTING_EXECUTE,
+                    RabbitMQConstants.ROUTING_LEDGER_AND_BALANCE,
                     processed
             );
-            sendAuditLog(payload,true,"");
-       // ACK
-           channel.basicAck(deliveryTag, false); // khúc này là ack để xóa quque
+              channel.basicAck(deliveryTag, false); //ack và xóa
+
             log.info("CURRENCY-SERVICE Forwarded TX {} with payload {} {} {} {} {} {}",
                     processed.getTransactionId(),
-                    processed.getProcessedAt(),
+                    processed.getTransactionStatus(),
                     processed.getSourceCurrency(),
-                    processed.getAmount(),
                     processed.getTargetCurrency(),
+                    processed.getAmount(),
                     processed.getConvertedAmount(),
                     processed.getCreatedAt());
 //
@@ -58,48 +58,47 @@ public class CurrencyExchangeListener {
             log.error("CURRENCY-SERVICE FxRatesAPI error TX {}: {} -> REQUEUE",
                     payload.getTransactionId(), e.getMessage());
             channel.basicNack(deliveryTag, false, true);
-            sendAuditLog(payload,false,e.getMessage());
 
         } catch (IllegalArgumentException | IllegalStateException e) {
-            // Lỗi data -> drop luôn (requeue cũng vô ích)
             log.error("CURRENCY-SERVICE Invalid message TX {}: {} -> DROP",
                     payload.getTransactionId(), e.getMessage());
+
+            PaymentMessage failedMsg = PaymentMessage.builder()
+                    .transactionId(payload.getTransactionId())
+                    .transactionStatus(TransactionStatus.FAILED_EXCHANGE.name())
+                    .failureReason(e.getMessage())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConstants.TOPIC_EXCHANGE,
+                    RabbitMQConstants.ROUTING_TRANSACTION_UPDATE,
+                    failedMsg
+            );
             channel.basicNack(deliveryTag, false, false);
-            sendAuditLog(payload,false,e.getMessage());
+
 
         } catch (Exception e) {
-            // Lỗi không biết -> DROP để tránh poison message
             log.error("CURRENCY-SERVICE Unexpected error TX {}: {} -> DROP",
                     payload.getTransactionId(), e.getMessage(), e);
+
+            PaymentMessage failedMsg = PaymentMessage.builder()
+                    .transactionId(payload.getTransactionId())
+                    .transactionStatus(TransactionStatus.FAILED_EXCHANGE.name())
+                    .failureReason(e.getMessage())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConstants.TOPIC_EXCHANGE,
+                    RabbitMQConstants.ROUTING_TRANSACTION_UPDATE,
+                    failedMsg
+            );
+
             channel.basicNack(deliveryTag, false, false);
-            sendAuditLog(payload,false,e.getMessage());
+
         }
     }
 
-    private void sendAuditLog(PaymentMessage payload, boolean success, String messageError) {
-        AuditEvent auditEvent = AuditEvent
-                .builder()
-                .transactionId(payload.getTransactionId())
-                .serviceName("currency-exchange")
-                .eventType(success ? "EXCHANGE_COMPLETED" : "EXCHANGE_FAILED")
-                .status(success? "COMPLETED":"FAILED")
-                .fromAccount(payload.getFromAccount())
-                .toAccount(payload.getToAccount())
-                .amount(payload.getAmount())
-                .sourceCurrency(payload.getSourceCurrency())
-                .targetCurrency(payload.getTargetCurrency())
-        //        .exchangeRate(BigDecimal.ONE)
-                .convertedAmount(payload.getConvertedAmount())
-                .description(success ?"exchange thanh cong" : "exchange that bai roi")
-                .errorMessage(success ?"no" : messageError)
-                .eventTime(LocalDateTime.now())
-                .build();
-
-        rabbitTemplate.convertAndSend(
-                RabbitMQConstants.FANOUT_AUDIT_EXCHANGE,
-                "",
-                auditEvent
-        );
-    }
 
 }
