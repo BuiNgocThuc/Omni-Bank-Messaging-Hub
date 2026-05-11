@@ -1,613 +1,513 @@
-# 🏦 Omni-Bank Messaging Hub
+# FX Exchange System — Enterprise API Specification
 
-Hệ thống chuyển tiền ngân hàng sử dụng kiến trúc **Event-Driven Microservices** với **RabbitMQ** làm Message Broker, **Oracle Database** làm cơ sở dữ liệu, và **Spring Boot 4.0.6** (Java 21).
+## 1. System Overview
 
----
+### 1.1 Purpose
 
-## 📑 Mục Lục
+Hệ thống cung cấp nền tảng xử lý **giao dịch ngoại tệ** (**Foreign Exchange - FX**) theo mô hình **Microservices** và **Event-Driven Architecture**, hỗ trợ:
 
-- [Tổng quan kiến trúc](#-tổng-quan-kiến-trúc)
-- [Tech Stack](#-tech-stack)
-- [Cấu trúc Project](#-cấu-trúc-project)
-- [Chi tiết từng Module](#-chi-tiết-từng-module)
-- [Luồng xử lý giao dịch (Payment Flow)](#-luồng-xử-lý-giao-dịch-payment-flow)
-- [RabbitMQ Topology](#-rabbitmq-topology)
-- [Database Schema](#-database-schema)
-- [Hướng dẫn chạy project](#-hướng-dẫn-chạy-project)
-- [API Endpoints](#-api-endpoints)
-- [Dữ liệu mẫu](#-dữ-liệu-mẫu)
+- Mua bán ngoại tệ
+- Tạm giữ tiền (**Hold Balance**)
+- Hạch toán kép (**Double Entry Accounting**)
+- Xử lý bất đồng bộ qua **Message Queue**
 
----
+### 1.2 Service Map
 
-## 🏗 Tổng quan kiến trúc
-
-```
-┌──────────────────┐     REST (POST)     ┌─────────────────────┐
-│   Client / User  │ ──────────────────► │  Transaction Service│ (port 8085)
-└──────────────────┘                     │  - Validate request │
-                                         │  - Call Ledger (Feign)
-                                         │  - Save Transaction │
-                                         │  - Publish message  │
-                                         └────────┬────────────┘
-                                                  │
-                                         routing: pay.convert
-                                                  │
-                                                  ▼
-                                    ┌──────────────────────────┐
-                                    │     RabbitMQ Broker       │
-                                    │  Exchange: omni.banking.  │
-                                    │           topic           │
-                                    └──────┬───────────────┬───┘
-                                           │               │
-                              q.exchange.  │               │  q.transaction.
-                              process      │               │  update
-                                           ▼               │
-                              ┌────────────────────────┐   │
-                              │ Currency Exchange Svc  │   │
-                              │ (port 8082)            │   │
-                              │ - Gọi FxRatesAPI       │   │
-                              │ - Tính convertedAmount │   │
-                              └────────┬───────────────┘   │
-                                       │                   │
-                              routing:  │ pay.ledger        │
-                                       ▼                   │
-                              ┌────────────────────────┐   │
-                              │ Account Ledger Service │   │
-                              │ (port 8083)            │   │
-                              │ - Debit sender         │   │
-                              │ - Credit receiver      │   │
-                              │ - Save history         │   │
-                              │ - Publish result       │───┘
-                              └────────────────────────┘
-                                       │
-                              routing: pay.transaction.update
-                                       │
-                                       ▼
-                              ┌────────────────────────┐
-                              │ Transaction Service    │
-                              │ (Listener)             │
-                              │ - Cập nhật status TX   │
-                              │   COMPLETED / FAILED   │
-                              └────────────────────────┘
-```
+| Service                  | Responsibility                                                            |
+| ------------------------ | ------------------------------------------------------------------------- |
+| **SF Service**           | Receive request, validate basic request, get request to check idempotency |
+| **SF Processor Service** | Execute FX workflow                                                       |
+| **Treasury Service**     | Provide exchange rate                                                     |
+| **Core Service**         | Account validation, hold, ledger posting                                  |
 
 ---
 
-## 🛠 Tech Stack
+## 2. Business Flow
 
-| Thành phần | Công nghệ |
-|---|---|
-| Language | Java 21 |
-| Framework | Spring Boot 4.0.6 |
-| Message Broker | RabbitMQ 3.13 (với Management UI) |
-| Database | Oracle 23 Free (FREEPDB1) |
-| ORM | Spring Data JPA + Hibernate |
-| Inter-service Call | OpenFeign (Transaction → Ledger) |
-| External API | FxRatesAPI (`https://api.fxratesapi.com`) |
-| HTTP Client | Spring RestClient |
-| Serialization | Jackson JSON |
-| Build Tool | Maven (multi-module) |
-| Container | Docker Compose |
-| Annotation Processor | Lombok 1.18.36 |
+> NOTE:
+> Xem sequence diagram đầy đủ tại: `sell-foreign-sequence-diagram.drawio`
 
----
-
-## 📁 Cấu trúc Project
-
-```
-Omni-Bank-Messaging-Hub/
-├── pom.xml                          # Parent POM (multi-module)
-├── docker-compose.yml               # RabbitMQ + Oracle DB
-├── oracle-init/
-│   └── 01_create_schemas.sql        # Tạo user/schema Oracle
-│
-├── common/                          # Module dùng chung
-│   └── src/main/java/com/example/common/
-│       ├── config/api/
-│       │   ├── ApiCode.java         # Mã trạng thái API
-│       │   └── ApiResponse.java     # Response wrapper chuẩn
-│       ├── constant/
-│       │   └── RabbitMQConstants.java  # Tên exchange, queue, routing key
-│       ├── dto/
-│       │   ├── message/
-│       │   │   ├── PaymentMessage.java # Message truyền qua RabbitMQ
-│       │   │   └── AuditEvent.java     # Audit event (chuẩn bị mở rộng)
-│       │   └── request/
-│       │       ├── PaymentRequest.java   # Request body từ client
-│       │       ├── AccountsRequest.java  # Request gửi sang Ledger
-│       │       └── AccountResponseDTO.java # Response từ Ledger
-│       ├── enums/
-│       │   ├── Currency.java         # Enum tất cả loại tiền tệ
-│       │   └── TransactionStatus.java # PENDING → EXCHANGED → COMPLETED/FAILED
-│       └── exception/
-│           ├── BusinessException.java      # Exception nghiệp vụ
-│           └── GlobalExceptionHandler.java # Xử lý exception toàn cục
-│
-├── transaction-service/             # Service khởi tạo giao dịch
-│   └── src/main/java/org/example/transactionservice/
-│       ├── controller/
-│       │   └── TransactionController.java  # POST /api/v1/transaction
-│       ├── service/
-│       │   ├── ITransactionService.java
-│       │   └── Impl/TransactionService.java  # Logic chính
-│       ├── entity/
-│       │   └── Transaction.java       # Entity JPA
-│       ├── repository/
-│       │   └── TransactionRepository.java
-│       ├── client/
-│       │   └── LedgerClient.java      # OpenFeign gọi sang Ledger
-│       ├── dto/
-│       │   └── AccountValidateResponse.java
-│       ├── config/
-│       │   └── RabbitMQConfig.java    # Khai báo Exchange, Queue, Binding
-│       └── listener/
-│           └── TransactionUpdateListener.java  # Nhận kết quả cuối
-│
-├── currency-exchange-service/       # Service đổi ngoại tệ
-│   └── src/main/java/com/example/currencyexchangeservice/
-│       ├── listener/
-│       │   └── CurrencyExchangeListener.java  # Nhận từ q.exchange.process
-│       ├── service/
-│       │   ├── ICurrencyExchangeService.java
-│       │   └── Impl/CurrencyExchangeService.java  # Gọi API + tính toán
-│       ├── client/
-│       │   └── FxRatesClient.java     # Gọi FxRatesAPI external
-│       ├── dto/
-│       │   └── FxRatesResponse.java   # Response từ FxRatesAPI
-│       └── config/
-│           ├── RabbitMQConfig.java     # Khai báo tất cả queue/binding
-│           └── RestClientConfig.java   # Config RestClient cho FxRatesAPI
-│
-└── account-ledger-service/          # Service quản lý sổ cái & số dư
-    └── src/main/java/com/example/accountledgerservice/
-        ├── controller/
-        │   └── AccountController.java  # POST /api/ledger/accounts
-        ├── service/
-        │   ├── IAccountLedgerService.java
-        │   └── Impl/AccountLedgerService.java  # Debit/Credit + History
-        ├── entity/
-        │   ├── Account.java            # Tài khoản ngân hàng
-        │   └── TransactionHistory.java  # Lịch sử ghi sổ (DEBIT/CREDIT)
-        ├── repository/
-        │   ├── AccountRepository.java   # debit(), credit(), findAll
-        │   └── TransactionHistoryRepository.java
-        ├── enums/
-        │   └── EntryType.java           # DEBIT, CREDIT
-        ├── config/
-        │   ├── RabbitMQConfig.java
-        │   └── AccountDataInitializer.java  # Seed 3 tài khoản mẫu
-        └── listener/
-            └── AccountLedgerListener.java  # Nhận từ q.account.update
-```
+1. Client gửi yêu cầu đổi ngoại tệ
+2. SF Service validate request + đọc `idempotency_key` để check idempotency
+3. Push message vào MQ
+4. Trả API `202 Accepted`
+5. SF Processor consume message
+6. Gọi Treasury lấy exchange rate
+7. Lưu transaction detail
+8. Validate account qua Core Service
+9. Check balance
+10. Create `HOLD`
+11. Create ledger entry
+12. Update transaction `SUCCESS`
+13. Call API Notifications
 
 ---
 
-## 📦 Chi tiết từng Module
+## 3. Data Entity
 
-### 1. `common` — Module dùng chung
+### 3.A Table: `transaction` (SF Service quản lý)
 
-Module này **không chạy độc lập**, được các service khác dependency vào. Chứa:
+- **`tx_id`** (`UUID`, PK): Mã giao dịch hệ thống
+- **`idempotency_key`** (`UUID`): Mã định danh từ Client để chống trùng lặp
+- **`owner_id`** (`UUID`): ID khách hàng
+- **`status`** (`Enum`): `PROCESSING`, `SUCCESS`, `FAILED`
 
-| Package | Mô tả |
-|---|---|
-| `config.api` | `ApiResponse<T>` — wrapper response chuẩn (success, code, message, data, timestamp, path). `ApiCode` — mã lỗi/thành công. |
-| `constant` | `RabbitMQConstants` — tên Exchange (`omni.banking.topic`), Queue và Routing Key. |
-| `dto.message` | `PaymentMessage` — object truyền qua RabbitMQ giữa các service. `AuditEvent` — chuẩn bị cho audit trail. |
-| `dto.request` | `PaymentRequest` (input từ client), `AccountsRequest`, `AccountResponseDTO`. |
-| `enums` | `Currency` (160+ loại tiền), `TransactionStatus` (PENDING → EXCHANGED → COMPLETED_LEDGER / FAILED_*). |
-| `exception` | `BusinessException` + `GlobalExceptionHandler` — xử lý lỗi tập trung bằng `@RestControllerAdvice`. |
+### 3.B Table: `transaction_detail` (SF Processor quản lý)
 
-### 2. `transaction-service` — Port 8085
+- **`tx_detail_id`** (`UUID`, PK): ID chi tiết
+- **`tx_id`** (`UUID`, FK): Liên kết bảng `transaction`
+- **`currency_base`** (`Enum`): Tiền tệ gốc (VD: `USD`)
+- **`currency_target`** (`Enum`): Tiền tệ đích (VD: `VND`)
+- **`amount`** (`BigDecimal`): Số tiền gốc
+- **`rate_exchange`** (`BigDecimal`): Tỷ giá tại thời điểm giao dịch (từ Treasury). Hiệu lực trong 30 giây.
+- **`converted_amount`** (`BigDecimal`): Số tiền sau quy đổi
 
-**Vai trò:** Điểm vào (entry point) của hệ thống, nhận request chuyển tiền từ client.
+### 3.C Table: `account` (Core Banking Service quản lý)
 
-**Luồng xử lý khi nhận POST `/api/v1/transaction`:**
+- **`account_number_id`** (`UUID`): Số tài khoản
+- **`owner_id`** (`UUID`): Chủ tài khoản
+- **`currency`** (`Enum`): Currency của account
+- **`available_balance`** (`BigDecimal`): Số dư khả dụng
+- **`held_balance`** (`BigDecimal`): Số dư bị HOLD
 
-1. **Validate request:** Kiểm tra `fromAccount ≠ toAccount`.
-2. **Gọi Ledger qua OpenFeign:** `LedgerClient.getAccounts()` → lấy thông tin 2 tài khoản (sender & receiver).
-3. **Validate nghiệp vụ:** Kiểm tra sender/receiver tồn tại, kiểm tra số dư đủ.
-4. **Lưu Transaction** vào Oracle DB với status `PENDING`.
-5. **Publish `PaymentMessage`** lên RabbitMQ với routing key `pay.convert`.
-6. **Trả về `transactionId`** cho client ngay lập tức (async processing).
+### 3.D Table: `entry` (Core Banking Service quản lý)
 
-**Listener (`TransactionUpdateListener`):**
-- Lắng nghe queue `q.transaction.update`.
-- Nhận kết quả cuối cùng từ Ledger (COMPLETED_LEDGER hoặc FAILED_LEDGER / FAILED_EXCHANGE).
-- Cập nhật status của Transaction trong DB.
-
-### 3. `currency-exchange-service` — Port 8082
-
-**Vai trò:** Xử lý đổi ngoại tệ giữa 2 loại tiền khác nhau.
-
-**Luồng xử lý:**
-
-1. **Listener (`CurrencyExchangeListener`)** lắng nghe queue `q.exchange.process`.
-2. **Validate message:** Kiểm tra transactionId, amount > 0, currency không null, source ≠ target.
-3. **Gọi API external** `FxRatesAPI` (`https://api.fxratesapi.com/latest`) qua `FxRatesClient` (RestClient) để lấy tỷ giá thực.
-4. **Tính `convertedAmount`** = tỷ giá × amount.
-5. **Cập nhật status** thành `EXCHANGED`.
-6. **Forward message** sang queue `q.account.update` với routing key `pay.ledger`.
-
-**Xử lý lỗi:**
-- `RestClientException` (lỗi API) → **REQUEUE** (thử lại).
-- `IllegalArgumentException` (dữ liệu sai) → publish `FAILED_EXCHANGE` → **DROP**.
-- Exception khác → publish `FAILED_EXCHANGE` → **DROP**.
-
-### 4. `account-ledger-service` — Port 8083
-
-**Vai trò:** Quản lý số dư tài khoản, thực hiện ghi sổ (debit/credit), lưu lịch sử giao dịch.
-
-**REST API (`AccountController`):**
-- `POST /api/ledger/accounts` — Trả về thông tin tài khoản theo danh sách accountNumber (được gọi bởi Transaction Service qua Feign).
-
-**Luồng xử lý message (`AccountLedgerListener`):**
-
-1. Lắng nghe queue `q.account.update`.
-2. Gọi `executeLedgerAndUpdateBalance()`:
-   - **Validate** status phải là `EXCHANGED`.
-   - **Debit** sender: `balance = balance - amount` (native JPQL update).
-   - **Credit** receiver: `balance = balance + convertedAmount`.
-   - **Lưu 2 bản ghi TransactionHistory** (1 DEBIT, 1 CREDIT).
-3. **Thành công** → publish `COMPLETED_LEDGER` lên `q.transaction.update`.
-4. **Thất bại** → publish `FAILED_LEDGER` lên `q.transaction.update`.
-
-**Seed data (`AccountDataInitializer`):** Tự động tạo 3 tài khoản mẫu khi DB trống.
+- **`entry_id`** (`UUID`): Entry ID
+- **`tx_id`** (`UUID`): Transaction ID
+- **`account_number_id`** (`UUID`): Account number
+- **`owner_id`** (`UUID`): Chủ tài khoản
+- **`currency`** (`Enum`): Currency của account
+- **`amount`** (`BigDecimal`): Số tiền xử lý
+- **`type`** (`Enum`): `HOLD`, `RELEASE`, `DEBIT`, `CREDIT`
+- **`created_at`** (`LocalDateTime`): Thời gian tạo
 
 ---
 
-## 🔄 Luồng xử lý giao dịch (Payment Flow)
+## 4. API Specifications
 
-```
-Người dùng gửi: POST /api/v1/transaction
-{
-  "fromAccount": "ACC10001",
-  "toAccount": "ACC20002",
-  "amount": 100
-}
-```
+### 4.1 Execute FX Transaction
 
-### ✅ Luồng Thành Công (Happy Path)
+- **Endpoint:** `POST /api/v1/fx/exchange`
+- **Description:** Khởi tạo giao dịch đổi ngoại tệ.
 
-```
-Step 1: [Transaction Service]
-        │ ← Nhận POST request
-        │ → Gọi Feign đến Ledger để validate 2 tài khoản
-        │ → Check sender balance ≥ amount
-        │ → Lưu Transaction (status = PENDING)
-        │ → Publish PaymentMessage (routing: pay.convert)
-        │ → Trả client: { transactionId: "TXN-A1B2C3D4" }
-        ▼
-Step 2: [Currency Exchange Service]
-        │ ← Nhận message từ q.exchange.process
-        │ → Validate payload
-        │ → Gọi FxRatesAPI: USD → VND, amount=100
-        │ → Nhận convertedAmount (ví dụ: 2,547,500 VND)
-        │ → Set status = EXCHANGED
-        │ → Forward message (routing: pay.ledger)
-        │ → ACK message
-        ▼
-Step 3: [Account Ledger Service]
-        │ ← Nhận message từ q.account.update
-        │ → Debit ACC10001: -100 USD
-        │ → Credit ACC20002: +2,547,500 VND
-        │ → Lưu 2 bản ghi TransactionHistory
-        │ → Publish COMPLETED_LEDGER (routing: pay.transaction.update)
-        │ → ACK message
-        ▼
-Step 4: [Transaction Service - Listener]
-        │ ← Nhận message từ q.transaction.update
-        │ → Cập nhật Transaction status = COMPLETED_LEDGER
-        │ → ACK message
-        ▼
-        ✅ HOÀN TẤT
-```
-
-### ❌ Luồng Thất Bại
-
-| Lỗi tại | Xử lý |
-|---|---|
-| Transaction Service (validate) | Trả 400 ngay lập tức, không publish message |
-| Currency Exchange (API timeout) | NACK + REQUEUE → RabbitMQ retry |
-| Currency Exchange (dữ liệu sai) | Publish FAILED_EXCHANGE → Transaction cập nhật |
-| Account Ledger (debit/credit fail) | Publish FAILED_LEDGER → Transaction cập nhật |
-
----
-
-## 🐰 RabbitMQ Topology
-
-### Exchange
-
-| Tên | Loại | Durable |
-|---|---|---|
-| `omni.banking.topic` | Topic Exchange | ✅ |
-
-### Queues & Bindings
-
-| Queue | Routing Key | Consumer |
-|---|---|---|
-| `q.exchange.process` | `pay.convert` | Currency Exchange Service |
-| `q.account.update` | `pay.ledger` | Account Ledger Service |
-| `q.transaction.update` | `pay.transaction.update` | Transaction Service |
-
-### Message Format
-
-Tất cả message đều dùng **`PaymentMessage`** (JSON):
+#### Request Body
 
 ```json
 {
-  "transactionId": "TXN-A1B2C3D4",
-  "fromAccount": "ACC10001",
-  "toAccount": "ACC20002",
-  "amount": 100,
-  "sourceCurrency": "USD",
-  "targetCurrency": "VND",
-  "convertedAmount": 2547500.000000,
-  "transactionStatus": "EXCHANGED",
-  "createdAt": "2026-05-09T17:30:00",
-  "failureReason": null
+  "idempotency_key": "550e8400-e29b-41d4-a716-446655440000",
+  "owner_id": 882291,
+  "account_number_id": "0900231231",
+  "base_currency": "USD",
+  "target_currency": "VND",
+  "amount": 500.0
 }
 ```
 
-### ACK Mode
+#### Request Fields
 
-Tất cả service đều sử dụng **Manual ACK** (`acknowledge-mode: manual`):
-- `basicAck` — xử lý thành công, xóa message khỏi queue.
-- `basicNack(requeue=true)` — lỗi tạm thời (API timeout), đưa lại vào queue.
-- `basicNack(requeue=false)` — lỗi nghiêm trọng, bỏ message (có publish thông báo lỗi).
+| Field               | Type         | Required | Mô tả                                               |
+| ------------------- | ------------ | -------- | --------------------------------------------------- |
+| `idempotency_key`   | `UUID`       | Required | Client tự generate. Dùng để check duplicate request |
+| `owner_id`          | `Long`       | Required | ID số của chủ tài khoản                             |
+| `account_number_id` | `String`     | Required | Số tài khoản nguồn                                  |
+| `base_currency`     | `Enum`       | Required | Tiền tệ đang bán                                    |
+| `target_currency`   | `Enum`       | Required | Tiền tệ nhận về                                     |
+| `amount`            | `BigDecimal` | Required | Số lượng ngoại tệ muốn bán                          |
 
----
-
-## 💾 Database Schema
-
-### Oracle — `FREEPDB1`
-
-Hệ thống sử dụng 2 schema riêng biệt:
-
-#### Schema: `LEDGER_USER` (Account Ledger Service)
-
-**Bảng `ACCOUNT`**
-
-| Cột | Kiểu | Mô tả |
-|---|---|---|
-| `ID` | NUMBER (PK, auto) | ID tự tăng |
-| `ACCOUNT_NUMBER` | VARCHAR(50) | Số tài khoản |
-| `OWNER_NAME` | VARCHAR(100) | Tên chủ tài khoản |
-| `BALANCE` | NUMBER(19,4) | Số dư hiện tại |
-| `CURRENCY` | VARCHAR(3) | Loại tiền (USD, VND, EUR...) |
-| `COUNTRY_CODE` | VARCHAR(3) | Mã quốc gia |
-| `UPDATED_AT` | TIMESTAMP | Lần cập nhật cuối |
-
-**Bảng `TRANSACTION_HISTORY`**
-
-| Cột | Kiểu | Mô tả |
-|---|---|---|
-| `ID` | NUMBER (PK, auto) | ID tự tăng |
-| `TRANSACTION_ID` | VARCHAR(50) | Mã giao dịch (TXN-xxx) |
-| `ACCOUNT_NUMBER` | VARCHAR(50) | Tài khoản liên quan |
-| `AMOUNT` | NUMBER(19,4) | Số tiền (âm = DEBIT, dương = CREDIT) |
-| `ENTRY_TYPE` | VARCHAR | DEBIT hoặc CREDIT |
-| `DESCRIPTION` | VARCHAR(50) | Mô tả |
-| `CREATED_AT` | TIMESTAMP | Thời điểm ghi sổ |
-
-#### Schema: `TRANSACTION_USER` (Transaction Service)
-
-**Bảng `TRANSACTION_NE`**
-
-| Cột | Kiểu | Mô tả |
-|---|---|---|
-| `TRANSACTION_ID` | VARCHAR (PK) | Mã giao dịch (TXN-xxx) |
-| `FROM_ACCOUNT` | VARCHAR | Tài khoản gửi |
-| `TO_ACCOUNT` | VARCHAR | Tài khoản nhận |
-| `AMOUNT` | NUMBER | Số tiền gốc |
-| `STATUS` | VARCHAR | PENDING → EXCHANGED → COMPLETED_LEDGER / FAILED_* |
-| `CREATED_AT` | TIMESTAMP | Thời điểm tạo |
-| `UPDATED_AT` | TIMESTAMP | Lần cập nhật cuối |
-
----
-
-## 🚀 Hướng dẫn chạy project
-
-### Yêu cầu hệ thống
-
-- **Java 21** (JDK)
-- **Maven 3.8+**
-- **Docker & Docker Compose**
-- (Tuỳ chọn) IDE: IntelliJ IDEA
-
-### Bước 1: Pull Docker Image Oracle
-
-```bash
-# Pull Oracle 23 Free image từ Oracle Container Registry
-docker pull container-registry.oracle.com/database/free:latest
-
-# Tag lại cho dễ dùng
-docker tag container-registry.oracle.com/database/free:latest oracle23:latest
-```
-
-### Bước 2: Khởi động Infrastructure (RabbitMQ + Oracle)
-
-```bash
-cd Omni-Bank-Messaging-Hub
-
-# Khởi động RabbitMQ + Oracle
-docker-compose up -d
-```
-
-**Kiểm tra trạng thái:**
-
-```bash
-docker-compose ps
-```
-
-Chờ Oracle DB healthy (có thể mất 2-5 phút lần đầu):
-
-```bash
-# Xem logs Oracle
-docker logs omnibank-oracle -f
-
-# Khi thấy "DATABASE IS READY TO USE!" là OK
-```
-
-**Truy cập RabbitMQ Management UI:**
-- URL: `http://localhost:15672`
-- Username: `guest`
-- Password: `guest`
-
-### Bước 3: Build toàn bộ project
-
-```bash
-# Từ thư mục root
-mvn clean install -DskipTests
-```
-
-> ⚠️ **Lưu ý:** Phải build `common` module trước vì các service khác phụ thuộc vào nó. Lệnh `mvn clean install` từ root sẽ tự build đúng thứ tự.
-
-### Bước 4: Chạy từng Service
-
-Mở **3 terminal riêng biệt** và chạy:
-
-**Terminal 1 — Account Ledger Service (port 8083):**
-```bash
-cd account-ledger-service
-mvn spring-boot:run
-```
-> Service này nên chạy **đầu tiên** vì Transaction Service cần gọi API tới nó (Feign).
-
-**Terminal 2 — Currency Exchange Service (port 8082):**
-```bash
-cd currency-exchange-service
-mvn spring-boot:run
-```
-
-**Terminal 3 — Transaction Service (port 8085):**
-```bash
-cd transaction-service
-mvn spring-boot:run
-```
-
-### Bước 5: Test giao dịch
-
-```bash
-curl -X POST http://localhost:8085/api/v1/transaction \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fromAccount": "ACC10001",
-    "toAccount": "ACC20002",
-    "amount": 100
-  }'
-```
-
-**Response mong đợi:**
+#### Success Response — `202 Accepted`
 
 ```json
 {
-  "success": true,
-  "code": "SUCCESS",
-  "message": "Payment is being processed - initiatePayment successfully!",
-  "data": "TXN-A1B2C3D4",
-  "timestamp": "2026-05-09T17:30:00",
-  "path": "/api/v1/transaction"
+  "timestamp": "2026-05-11T10:00:00Z",
+  "status": "PROCESSING",
+  "data": {
+    "tx_id": "FX-UUID-12345",
+    "message": "Transaction is being processed"
+  }
 }
 ```
 
-### Bước 6: Theo dõi luồng xử lý
+---
 
-Quan sát log trên 3 terminal:
+### 4.2 Get Transaction Status (Notifications)
 
-1. **Transaction Service:** `Published payment [TXN-xxx] with key=pay.convert`
-2. **Currency Exchange:** `CURRENCY-SERVICE Received TX: TXN-xxx` → `Forwarded TX TXN-xxx`
-3. **Account Ledger:** `[LEDGER] Processing TX: TXN-xxx` → `[LEDGER] TX TXN-xxx COMPLETED`
-4. **Transaction Service:** `[TRANSACTION] TX TXN-xxx updated to COMPLETED_LEDGER`
+- **Endpoint:** `GET /api/v1/fx/{tx_id}`
+
+#### Success Response — `200 OK`
+
+```json
+{
+  "tx_id": "FX-UUID-12345",
+  "status": "SUCCESS",
+  "base_currency": "USD",
+  "source_amount": 500,
+  "rate_exchange": 25450,
+  "target_currency": "VND",
+  "converted_amount": 12725000,
+  "created_at": "2026-05-11T10:00:00Z",
+  "completed_at": "2026-05-11T10:00:05Z"
+}
+```
+
+#### Response Fields
+
+| Field              | Type                | Required      | Mô tả                                             |
+| ------------------ | ------------------- | ------------- | ------------------------------------------------- |
+| `tx_id`            | `String (UUID)`     | Always        | Mã giao dịch hệ thống                             |
+| `status`           | `String (Enum)`     | Always        | Trạng thái: `PROCESSING` \| `SUCCESS` \| `FAILED` |
+| `base_currency`    | `String`            | Always        | Tiền tệ đang bán                                  |
+| `source_amount`    | `BigDecimal`        | Always        | Số lượng ngoại tệ đã bán                          |
+| `rate_exchange`    | `BigDecimal`        | Khi `SUCCESS` | Tỷ giá áp dụng từ Treasury                        |
+| `target_currency`  | `String`            | Always        | Tiền tệ nhận về                                   |
+| `converted_amount` | `BigDecimal`        | Khi `SUCCESS` | Số tiền VND nhận được                             |
+| `created_at`       | `String (ISO 8601)` | Always        | Thời điểm tạo giao dịch (UTC)                     |
+| `completed_at`     | `String (ISO 8601)` | Nullable      | Thời điểm hoàn tất. `null` khi `PROCESSING`       |
 
 ---
 
-## 📡 API Endpoints
+## 5. Validation Rules
 
-### Transaction Service (port 8085)
+### 5.1 Request Validation
 
-| Method | Path | Mô tả | Body |
-|---|---|---|---|
-| POST | `/api/v1/transaction` | Tạo giao dịch chuyển tiền | `PaymentRequest` |
+| Field                              | Rule                                     | Error Code                  | HTTP |
+| ---------------------------------- | ---------------------------------------- | --------------------------- | ---- |
+| `owner_id`                         | Required, Not Blank                      | `MISSING_FIELD`             | 400  |
+| `account_number_id`                | Required, Not Blank                      | `MISSING_FIELD`             | 400  |
+| `amount`                           | Required, Not Null                       | `MISSING_FIELD`             | 400  |
+| `amount`                           | Must be > 0                              | `AMOUNT_NOT_POSITIVE`       | 400  |
+| `amount`                           | Minimum 1.00 currency unit               | `AMOUNT_TOO_SMALL`          | 400  |
+| `amount`                           | Based on Daily Limit / Account Limit     | `AMOUNT_EXCEEDS_LIMIT`      | 400  |
+| `base_currency`                    | Required, supported: `VND`, `USD`, `JPY` | `UNSUPPORTED_CURRENCY_PAIR` | 400  |
+| `target_currency`                  | Required, supported: `VND`, `USD`, `JPY` | `UNSUPPORTED_CURRENCY_PAIR` | 400  |
+| `base_currency != target_currency` | Not the same currency                    | `SAME_CURRENCY`             | 400  |
 
-### Account Ledger Service (port 8083)
+### 5.2 Currency Validation
 
-| Method | Path | Mô tả | Body |
-|---|---|---|---|
-| POST | `/api/ledger/accounts` | Lấy thông tin tài khoản | `AccountsRequest` |
+| Rule                               | Description                   |
+| ---------------------------------- | ----------------------------- |
+| `base_currency != target_currency` | Cannot exchange same currency |
+| Supported pair                     | Must exist in Treasury        |
+
+### 5.3 Account Validation
+
+| Rule                | Description               |
+| ------------------- | ------------------------- |
+| Account exists      | Must exist in system      |
+| Account active      | Cannot be closed          |
+| Account not frozen  | Must be usable            |
+| Account owner match | Must belong to `owner_id` |
+
+### 5.4 Balance Validation
+
+> IMPORTANT:
+> Điều kiện hợp lệ: `available_balance >= amount + fee`
+
+### 5.5 Rate Validation
+
+| Rule             | Description        |
+| ---------------- | ------------------ |
+| Rate not expired | Within 30 seconds  |
+| Rate exists      | Treasury available |
 
 ---
 
-## 📋 Dữ liệu mẫu
+## 6. Business Rules
 
-Khi `account-ledger-service` khởi động lần đầu, tự động seed 3 tài khoản:
+### 6.1 Cut-off Time
 
-| Account Number | Owner | Balance | Currency | Country |
-|---|---|---|---|---|
-| `ACC10001` | Nguyen Van A | 10,000.0000 | USD | US |
-| `ACC20002` | Tran Thi B | 5,000,000.0000 | VND | VN |
-| `ACC30003` | Le Van C | 5,000.0000 | EUR | UK |
+FX transaction chỉ được thực hiện trong khung giờ:
 
-**Ví dụ test case:**
+- **Giờ:** `08:00 → 16:30`
+- **Ngày:** `Monday → Friday`
 
-```bash
-# Test 1: Chuyển USD → VND (khác tiền tệ - có đổi ngoại tệ)
-curl -X POST http://localhost:8085/api/v1/transaction \
-  -H "Content-Type: application/json" \
-  -d '{"fromAccount":"ACC10001","toAccount":"ACC20002","amount":50}'
+> WARNING:
+> Ngoài thời gian này: `403 Forbidden` — `FX_ERR_005`
 
-# Test 2: Chuyển VND → EUR
-curl -X POST http://localhost:8085/api/v1/transaction \
-  -H "Content-Type: application/json" \
-  -d '{"fromAccount":"ACC20002","toAccount":"ACC30003","amount":1000000}'
+### 6.2 FX Daily Limit
 
-# Test 3: Lỗi - cùng tài khoản
-curl -X POST http://localhost:8085/api/v1/transaction \
-  -H "Content-Type: application/json" \
-  -d '{"fromAccount":"ACC10001","toAccount":"ACC10001","amount":100}'
+| Customer Type | Daily Limit |
+| ------------- | ----------- |
+| Cá nhân       | 5,000 USD   |
+| Tổ chức       | 100,000 USD |
 
-# Test 4: Lỗi - không đủ tiền
-curl -X POST http://localhost:8085/api/v1/transaction \
-  -H "Content-Type: application/json" \
-  -d '{"fromAccount":"ACC10001","toAccount":"ACC20002","amount":999999}'
+### 6.3 Rate Expiry
+
+> IMPORTANT:
+> FX rate chỉ có hiệu lực trong **30 giây** kể từ thời điểm lấy từ Treasury.
+
+### 6.4 Transaction Fee
+
+| Scenario   | Fee |
+| ---------- | --- |
+| Same owner | 0%  |
+
+---
+
+## 7. HTTP Status Codes
+
+| HTTP  | Meaning                    |
+| ----- | -------------------------- |
+| `200` | Success                    |
+| `202` | Accepted                   |
+| `400` | Invalid request            |
+| `401` | Unauthorized               |
+| `403` | Forbidden                  |
+| `404` | Not found                  |
+| `409` | Duplicate request          |
+| `422` | Business validation failed |
+| `500` | Internal error             |
+| `503` | Dependency unavailable     |
+| `504` | Timeout                    |
+
+---
+
+## 8. Exception Codes
+
+| Code               | HTTP | Description                      |
+| ------------------ | ---- | -------------------------------- |
+| `FX_ERR_001`       | 400  | Invalid currency pair            |
+| `FX_ERR_002`       | 422  | Insufficient funds               |
+| `FX_ERR_003`       | 409  | Duplicate request                |
+| `FX_ERR_004`       | 403  | Daily limit exceeded             |
+| `FX_ERR_005`       | 403  | Outside trading time             |
+| `FX_ERR_006`       | 409  | Exchange rate expired            |
+| `FX_ERR_007`       | 422  | Source account currency mismatch |
+| `FX_ERR_008`       | 422  | Target account currency mismatch |
+| `FX_ERR_009`       | 404  | Account not found                |
+| `FX_ERR_010`       | 423  | Account locked                   |
+| `TREASURY_ERR_001` | 503  | Treasury unavailable             |
+| `CORE_ERR_001`     | 503  | Core banking unavailable         |
+| `MQ_ERR_001`       | 500  | Message queue failed             |
+| `SYS_ERR_001`      | 500  | Internal error                   |
+
+---
+
+## 9. Kịch Bản Test
+
+### 9.1 Successful FX Exchange
+
+**Scenario:** Khách hàng đổi 500 USD sang VND.
+
+#### Request
+
+```json
+POST /api/v1/fx/exchange
+{
+  "idempotency_key": "550e8400-e29b-41d4-a716-446655440000",
+  "owner_id": 882291,
+  "account_number_id": "0900231231",
+  "base_currency": "USD",
+  "target_currency": "VND",
+  "amount": 500.00
+}
+```
+
+#### Preconditions
+
+| Condition         | Value     |
+| ----------------- | --------- |
+| Account status    | `ACTIVE`  |
+| Available balance | 1,000 USD |
+| Treasury rate     | 25,450    |
+| Trading time      | 10:00 AM  |
+
+#### Expected Steps
+
+| Step                  | Expected Result |
+| --------------------- | --------------- |
+| Validate request      | SUCCESS         |
+| Check idempotency     | SUCCESS         |
+| Push MQ               | SUCCESS         |
+| Response 202          | SUCCESS         |
+| Consume MQ            | SUCCESS         |
+| Get FX rate           | SUCCESS         |
+| Validate account      | SUCCESS         |
+| Check balance         | SUCCESS         |
+| Create HOLD entry     | SUCCESS         |
+| Create DEBIT entry    | SUCCESS         |
+| Create CREDIT entry   | SUCCESS         |
+| Update transaction    | SUCCESS         |
+| Call API Notification | SUCCESS         |
+
+#### Expected API Response
+
+**POST** `POST /api/v1/fx/exchange` → `202 Accepted`
+
+```json
+{
+  "timestamp": "2026-05-11T10:00:00Z",
+  "status": "PROCESSING",
+  "data": {
+    "tx_id": "FX-UUID-12345",
+    "message": "Transaction is being processed"
+  }
+}
+```
+
+**GET** `GET /api/v1/fx/{tx_id}` → `200 OK`
+
+```json
+{
+  "tx_id": "FX-UUID-12345",
+  "status": "SUCCESS",
+  "base_currency": "USD",
+  "source_amount": 500,
+  "rate_exchange": 25450,
+  "target_currency": "VND",
+  "converted_amount": 12725000,
+  "created_at": "2026-05-11T10:00:00Z",
+  "completed_at": "2026-05-11T10:00:05Z"
+}
 ```
 
 ---
 
-## 🔧 Cấu hình Service
+### 9.2 Insufficient Balance
 
-### Port mapping
+**Scenario:** Khách hàng có 100 USD nhưng muốn đổi 500 USD.
 
-| Service | Port |
-|---|---|
-| Transaction Service | 8085 |
-| Currency Exchange Service | 8082 |
-| Account Ledger Service | 8083 |
-| RabbitMQ AMQP | 5672 |
-| RabbitMQ Management | 15672 |
-| Oracle DB | 1521 |
+#### Expected Response — `422 Unprocessable Entity`
 
-### Docker Compose Services
-
-| Container | Image | Mô tả |
-|---|---|---|
-| `omnibank-rabbitmq` | `rabbitmq:3.13-management` | Message Broker |
-| `omnibank-oracle` | `oracle23:latest` | Oracle Database 23 Free |
-
-### Oracle Connection
-
-| Thuộc tính | Giá trị |
-|---|---|
-| URL | `jdbc:oracle:thin:@//localhost:1521/FREEPDB1` |
-| Ledger User | `ledger_user` / `ledger123` |
-| Transaction User | `transaction_user` / `transaction123` |
-| SYS Password | `Oracle123` |
+```json
+{
+  "timestamp": "2026-05-11T10:05:00Z",
+  "status": "ERROR",
+  "error": {
+    "code": "FX_ERR_002",
+    "message": "Insufficient funds"
+  }
+}
+```
 
 ---
 
-## ⚠️ Lưu ý quan trọng
+### 9.3 Duplicate Request
 
-1. **Thứ tự khởi động:** Docker Compose → Account Ledger Service → Currency Exchange Service → Transaction Service.
-2. **Oracle DB cần thời gian:** Lần đầu chạy Oracle container có thể mất 3-5 phút để khởi tạo. Script `01_create_schemas.sql` sẽ tự chạy khi Oracle sẵn sàng.
-3. **FxRatesAPI:** Currency Exchange Service gọi API thật từ `https://api.fxratesapi.com`. Cần kết nối Internet.
-4. **Manual ACK:** Tất cả consumer đều dùng manual acknowledge. Nếu service crash giữa chừng, message sẽ được requeue.
-5. **Hibernate DDL Auto:** Đặt `update` — tự tạo/cập nhật bảng khi khởi động. **Không dùng cho production.**
+**Scenario:** Gửi 2 request có cùng `idempotency_key`.
+
+#### Request
+
+```json
+{
+  "idempotency_key": "550e8400-e29b-41d4-a716-446655440000",
+  "owner_id": 882291,
+  "account_number_id": "0900231231",
+  "base_currency": "USD",
+  "target_currency": "VND",
+  "amount": 500.0
+}
+```
+
+#### Expected Steps
+
+| Step              | Result       |
+| ----------------- | ------------ |
+| Check idempotency | FAILED       |
+| MQ publish        | NOT EXECUTED |
+| Transaction       | REJECTED     |
+
+#### Expected Response — `409 Conflict`
+
+```json
+{
+  "timestamp": "2026-05-11T10:06:00Z",
+  "status": "ERROR",
+  "error": {
+    "code": "FX_ERR_003",
+    "message": "Duplicate request"
+  }
+}
+```
+
+---
+
+### 9.4 Invalid Currency Pair
+
+**Scenario:** Khách hàng tạo giao dịch đổi từ USD sang ABC.
+
+#### Request
+
+```json
+{
+  "idempotency_key": "77777777-e29b-41d4-a716-446655440000",
+  "owner_id": 882291,
+  "account_number_id": "0900231231",
+  "base_currency": "USD",
+  "target_currency": "ABC",
+  "amount": 500.0
+}
+```
+
+#### Expected Steps
+
+| Step                | Result |
+| ------------------- | ------ |
+| Treasury validation | FAILED |
+| Transaction         | FAILED |
+
+#### Expected Response — `400 Bad Request`
+
+```json
+{
+  "timestamp": "2026-05-11T10:10:00Z",
+  "status": "ERROR",
+  "error": {
+    "code": "FX_ERR_001",
+    "message": "Invalid currency pair"
+  }
+}
+```
+
+---
+
+### 9.5 Outside Trading Time
+
+**Scenario:** Khách hàng request lúc 22:00 PM.
+
+#### Expected Steps
+
+| Validation         | Result       |
+| ------------------ | ------------ |
+| Trading time check | FAILED       |
+| MQ publish         | NOT EXECUTED |
+
+#### Expected Response — `403 Forbidden`
+
+```json
+{
+  "timestamp": "2026-05-11T22:00:00Z",
+  "status": "ERROR",
+  "error": {
+    "code": "FX_ERR_005",
+    "message": "Outside trading time"
+  }
+}
+```
+
+---
+
+### 9.6 Daily Limit Exceeded
+
+**Scenario:** Khách hàng đã giao dịch 4,900 USD, sau đó giao dịch thêm 500 USD (vượt limit 5,000 USD/ngày).
+
+#### Expected Steps
+
+| Validation             | Result      |
+| ---------------------- | ----------- |
+| Daily limit validation | FAILED      |
+| HOLD                   | NOT CREATED |
+
+#### Expected Response — `403 Forbidden`
+
+```json
+{
+  "timestamp": "2026-05-11T13:00:00Z",
+  "status": "ERROR",
+  "error": {
+    "code": "FX_ERR_004",
+    "message": "Daily limit exceeded"
+  }
+}
+```
+
+---
