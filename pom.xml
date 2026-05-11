@@ -10,9 +10,10 @@
 
     <modules>
         <module>common</module>
-        <module>currency-exchange-service</module>
-        <module>account-ledger-service</module>
-        <module>transaction-service</module>
+        <module>sell-foreign-service</module>
+        <module>sell-foreign-processor-service</module>
+        <module>treasury-service</module>
+        <module>core-banking</module>
     </modules>
 
     <properties>
