@@ -2,6 +2,7 @@ package org.example.transactionservice.controller;
 
 import com.example.common.config.api.ApiResponse;
 import com.example.common.dto.request.PaymentRequest;
+import com.example.common.dto.response.TransactionData;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.transactionservice.service.ITransactionService;
@@ -19,8 +20,8 @@ public class TransactionController {
     private final ITransactionService iTransactionService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<String>> createPayment(@Valid @RequestBody PaymentRequest request) {
-        ApiResponse<String> response = iTransactionService.initiateTransaction(request);
+    public ResponseEntity<ApiResponse<TransactionData>> createPayment(@Valid @RequestBody PaymentRequest request) {
+        ApiResponse<TransactionData> response = iTransactionService.initiateTransaction(request);
         return ResponseEntity.ok(response);
     }
 

@@ -1,7 +1,7 @@
 package org.example.transactionservice.service.Impl;
 
-import com.example.common.config.api.ApiCode;
 import com.example.common.config.api.ApiResponse;
+import com.example.common.dto.response.TransactionData;
 import com.example.common.constant.RabbitMQConstants;
 import com.example.common.dto.message.PaymentMessage;
 import com.example.common.dto.request.AccountResponseDTO;
@@ -37,7 +37,7 @@ public class TransactionService implements ITransactionService {
     private final RabbitTemplate rabbitTemplate;
     @Override
     @Transactional
-    public ApiResponse<String> initiateTransaction(PaymentRequest request) {
+    public ApiResponse<TransactionData> initiateTransaction(PaymentRequest request) {
         String txId = "TXN-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         AccountValidateResponse accountValidateResponse =  validatePaymentRequest(request);
 
@@ -72,12 +72,12 @@ public class TransactionService implements ITransactionService {
 
         log.info("Published payment [{}] with key=pay.convert", txId);
 
-        return ApiResponse.success(
-                ApiCode.SUCCESS,
-                "Payment is being processed - initiatePayment successfully!",
-                txId,
-                "/api/v1/transaction"
-        );
+        TransactionData txData = TransactionData.builder()
+                .txId(txId)
+                .message("Transaction is being processed")
+                .build();
+
+        return ApiResponse.success("PROCESSING", txData);
     }
 
     private AccountValidateResponse validatePaymentRequest(PaymentRequest request) {

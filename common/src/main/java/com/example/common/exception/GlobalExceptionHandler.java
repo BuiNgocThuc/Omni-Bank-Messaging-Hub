@@ -17,20 +17,20 @@ public class GlobalExceptionHandler {
 
     //loi nghiệp vụ
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<Object>> handleBusiness(
+    public ResponseEntity<ApiResponse<ApiResponse.ErrorData>> handleBusiness(
             BusinessException ex, HttpServletRequest request) {
 
         log.warn("[{}] {} - {}", ex.getCode(), request.getRequestURI(), ex.getMessage());
 
         return ResponseEntity.status(ex.getStatus()).body(
-                ApiResponse.error(ex.getCode(), ex.getMessage(), request.getRequestURI())
+                ApiResponse.error(ex.getCode(), ex.getMessage())
         );
     }
 
 
     //check currency  hop le hay khong
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<Object>> handleNotReadable(
+    public ResponseEntity<ApiResponse<ApiResponse.ErrorData>> handleNotReadable(
             HttpMessageNotReadableException ex, HttpServletRequest request) {
 
         String msg = (ex.getMessage() != null && ex.getMessage().contains("Currency"))
@@ -40,20 +40,19 @@ public class GlobalExceptionHandler {
         log.warn("Bad request: {}", ex.getMessage());
 
         return ResponseEntity.badRequest().body(
-                ApiResponse.error("BAD_REQUEST", msg, request.getRequestURI())
+                ApiResponse.error("BAD_REQUEST", msg)
         );
     }
 
     // lỗi k lường trước
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Object>> handleAll(
+    public ResponseEntity<ApiResponse<ApiResponse.ErrorData>> handleAll(
             Exception ex, HttpServletRequest request) {
 
         log.error("Unexpected error at [{}]", request.getRequestURI(), ex);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                ApiResponse.error("INTERNAL_ERROR", "An unexpected error occurred",
-                        request.getRequestURI())
+                ApiResponse.error("INTERNAL_ERROR", "An unexpected error occurred")
         );
     }
 }

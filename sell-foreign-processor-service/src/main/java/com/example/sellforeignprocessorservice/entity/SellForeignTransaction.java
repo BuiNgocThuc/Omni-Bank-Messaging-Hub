@@ -1,9 +1,10 @@
-package com.example.sellforeignservice.entity;
+package com.example.sellforeignprocessorservice.entity;
 
-import com.example.sellforeignservice.enums.TransactionStatus;
+import com.example.sellforeignprocessorservice.enums.TransactionStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 

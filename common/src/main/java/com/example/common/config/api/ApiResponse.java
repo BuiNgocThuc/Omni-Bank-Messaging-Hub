@@ -7,37 +7,38 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Setter
 @AllArgsConstructor
+@Builder
 public class ApiResponse<T> {
 
-    private boolean success;
-    private String code;
-    private String message;
+    private Instant timestamp;
+    private String status;
     private T data;
-    private LocalDateTime timestamp;
-    private String path;
 
-    public ApiResponse(boolean success, String code, String message, T data, String path) {
-        this.success = success;
-        this.code = code;
-        this.message = message;
+    public ApiResponse(String status, T data) {
+        this.timestamp = Instant.now();
+        this.status = status;
         this.data = data;
-        this.timestamp = LocalDateTime.now();
-        this.path = path;
     }
 
-    public static <T> ApiResponse<T> success(String code, String message, T data, String path) {
-        return new ApiResponse<>(true, code, message, data, path);
+    public static <T> ApiResponse<T> success(String status, T data) {
+        return new ApiResponse<>(status, data);
     }
 
-    public static <T> ApiResponse<T> error(String code, String message, String path) {
-        return new ApiResponse<>(false, code, message, null, path);
+    public static ApiResponse<ApiResponse.ErrorData> error(String status, String message) {
+        return new ApiResponse<>(status, new ErrorData(message));
     }
 
 
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    public static class ErrorData {
+        private String message;
+    }
 }

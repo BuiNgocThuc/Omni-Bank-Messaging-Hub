@@ -1,8 +1,11 @@
-package com.example.sellforeignservice.dto.request;
+package com.example.common.dto.message;
 
+import com.example.common.enums.Currency;
 import lombok.*;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 @Builder
@@ -12,11 +15,13 @@ import java.util.UUID;
 @Setter
 public class SellForeignMessage implements Serializable {
     private UUID txId;
-    private UUID idempotencyKey;
-    private UUID ownerId;
+    private String idempotencyKey;
+    private String ownerId;
+    private String accountNumberId;
 
-    private Currency currencyBase;
-    private Currency currencyTarget;
+    private Currency baseCurrency;
+    private Currency targetCurrency;
 
     private BigDecimal amount;
+    private Instant timestamp;
 }

@@ -1,4 +1,4 @@
-package com.example.sellforeignservice.dto.response;
+package com.example.common.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -10,7 +10,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @Builder
-public class SellForeignTransactionResponse {
+public class TransactionData {
 
     @JsonProperty("tx_id")
     private String txId;
