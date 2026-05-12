@@ -40,9 +40,6 @@ public class Entry {
     @Column(name = "rate_exchange", precision = 19, scale = 4)
     private BigDecimal rateExchange;
 
-//    @Column(name = "status", nullable = false, length = 20)
-//    private String status;
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

@@ -6,7 +6,7 @@ spring:
 
   datasource:
     url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
-    username: core_banking
+    username: core_banking_user
     password: core_banking123
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
@@ -21,7 +21,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.OracleDialect
         format_sql: true
-        default_schema: CORE_BANKING
+        default_schema: CORE_BANKING_USER
 
   rabbitmq:
     host: localhost

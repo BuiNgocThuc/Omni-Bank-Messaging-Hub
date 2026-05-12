@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Service
@@ -32,11 +33,10 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
     @Transactional
     public void processTransaction(SellForeignMessage message) {
 
-        initTransaction(message);
-
+        SellForeignTransaction transaction = initTransaction(message);
 
         try {
-            // call core banking để hold và check cái balance (chưa litmit)
+            // Step 1: Hold balance
             HoldRequest holdRequest = HoldRequest.builder()
                     .txId(message.getTxId().toString())
                     .accountNumberId(message.getAccountNumberId())
@@ -44,58 +44,56 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
                     .currency(message.getBaseCurrency().name())
                     .amount(message.getAmount())
                     .build();
-            //1.check balance and hold
+
             ExternalApiResponse<HoldResponse> holdResponse = coreBankingClient.checkAndHold(holdRequest);
             HoldResponse holdData = holdResponse.getData();
             log.info("Hold success [{}] for tx [{}]", holdData.getHoldId(), message.getTxId());
 
+            // Step 2: Get exchange rate
+            TreasuryRateRequest rateRequest = TreasuryRateRequest.builder()
+                    .txId(message.getTxId().toString())
+                    .base(message.getBaseCurrency().name())
+                    .currencies(message.getTargetCurrency().name())
+                    .build();
 
-
-
-
-            // 2. sau khi ok rồi h đi đổi tỉ giá
-            ExternalApiResponse<TreasuryRateResponse> rateResponse = treasuryClient.getRate(
-                    message.getBaseCurrency().name(),
-                    message.getTargetCurrency().name(),
-                    message.getAmount().toPlainString()
-            );
-
+            ExternalApiResponse<TreasuryRateResponse> rateResponse = treasuryClient.getRate(rateRequest);
             TreasuryRateResponse rateData = rateResponse.getData();
-            log.info("Got rate [{}] for {}/{} — converted: {}",
+            log.info("Got rate [{}] for {}/{} → timestamp: {}",
                     rateData.getRateExchange(),
                     rateData.getBase(),
                     rateData.getTarget(),
-                    rateData.getConvertedAmount());
+                    rateData.getTimestamp());
 
-            // ── Step 3: Call Core Banking to Release Hold and Create Entry ──
+            // Step 3: Release hold & create entry
             ReleaseAndEntryRequest releaseRequest = ReleaseAndEntryRequest.builder()
                     .txId(message.getTxId().toString())
                     .holdId(holdData.getHoldId())
                     .accountNumberId(message.getAccountNumberId())
                     .rateExchange(rateData.getRateExchange())
+                    .baseCurrency(message.getBaseCurrency())
+                    .targetCurrency(message.getTargetCurrency())
                     .build();
 
             ExternalApiResponse<ReleaseAndEntryResponse> releaseResponse = coreBankingClient.releaseAndEntry(releaseRequest);
             ReleaseAndEntryResponse releaseData = releaseResponse.getData();
-            log.info("Release success [{}] — entry [{}]", holdData.getHoldId(), releaseData.getEntryId());
+            log.info("Release success [{}] → entry [{}]", holdData.getHoldId(), releaseData.getEntryId());
 
-            // ── Step 4: Save transaction detail ──
+            // Step 4: Save success detail
+            BigDecimal convertedAmount = message.getAmount().multiply(rateData.getRateExchange());
+
             TransactionDetail detail = TransactionDetail.builder()
-                    .txId(message.getTxId())
+                    .txId(transaction.getTxId())
                     .accountNumberId(message.getAccountNumberId())
-                    .baseCurrency(message.getBaseCurrency().name())
-                    .targetCurrency(message.getTargetCurrency().name())
+                    .baseCurrency(message.getBaseCurrency())
+                    .targetCurrency(message.getTargetCurrency())
                     .sourceAmount(message.getAmount())
                     .rateExchange(rateData.getRateExchange())
-                    .convertedAmount(rateData.getConvertedAmount())
-                    .holdId(holdData.getHoldId())
-                    .entryId(releaseData.getEntryId())
+                    .convertedAmount(convertedAmount)
                     .completedAt(LocalDateTime.now())
                     .build();
 
             transactionDetailRepository.save(detail);
 
-            // ── Step 5: Update transaction status → SUCCESS ──
             transaction.setStatus(TransactionStatus.SUCCESS);
             transactionRepository.save(transaction);
             log.info("Transaction [{}] completed successfully", message.getTxId());
@@ -103,12 +101,12 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
         } catch (Exception e) {
             log.error("Transaction [{}] failed: {}", message.getTxId(), e.getMessage(), e);
 
-            // Save detail with failure reason
+            // Save failure detail
             TransactionDetail failDetail = TransactionDetail.builder()
-                    .txId(message.getTxId())
+                    .txId(transaction.getTxId())
                     .accountNumberId(message.getAccountNumberId())
-                    .baseCurrency(message.getBaseCurrency().name())
-                    .targetCurrency(message.getTargetCurrency().name())
+                    .baseCurrency(message.getBaseCurrency())
+                    .targetCurrency(message.getTargetCurrency())
                     .sourceAmount(message.getAmount())
                     .failureReason(e.getMessage())
                     .completedAt(LocalDateTime.now())
@@ -116,15 +114,13 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
 
             transactionDetailRepository.save(failDetail);
 
-            // Update transaction status → FAILED
             transaction.setStatus(TransactionStatus.FAILED);
             transactionRepository.save(transaction);
         }
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    protected void initTransaction(SellForeignMessage message) {
-        log.info("Processing transaction [{}]", message.getTxId());
+    private SellForeignTransaction initTransaction(SellForeignMessage message) {
+        log.info("Initializing transaction [{}]", message.getTxId());
 
         SellForeignTransaction transaction = SellForeignTransaction.builder()
                 .txId(message.getTxId())
@@ -133,17 +129,6 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
                 .status(TransactionStatus.PROCESSING)
                 .build();
 
-        TransactionDetail detail = TransactionDetail.builder()
-                .accountNumberId(message.getAccountNumberId())
-                .baseCurrency(message.getBaseCurrency() != null ? message.getBaseCurrency() : null)
-                .targetCurrency(message.getTargetCurrency() != null ? message.getTargetCurrency() : null)
-                .sourceAmount(message.getAmount())
-                .transaction(transaction)
-                .build();
-
-        transaction.setDetail(detail);
-
-        transactionRepository.save(transaction);
+        return transactionRepository.save(transaction);
     }
-
 }

@@ -1,5 +1,6 @@
 package com.example.corebanking.entity;
 
+import com.example.common.enums.Currency;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,7 +23,8 @@ public class Account {
     private String ownerId;
 
     @Column(name = "currency", nullable = false, length = 3)
-    private String currency;
+    @Enumerated(EnumType.STRING)
+    private Currency currency;
 
     @Column(name = "total_balance", nullable = false, precision = 19, scale = 2)
     private BigDecimal totalBalance;

@@ -34,7 +34,4 @@ public class SellForeignTransaction {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @OneToOne(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private TransactionDetail detail;
 }

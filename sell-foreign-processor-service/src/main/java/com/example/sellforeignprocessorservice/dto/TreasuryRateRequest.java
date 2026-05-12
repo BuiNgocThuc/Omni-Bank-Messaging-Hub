@@ -2,16 +2,13 @@ package com.example.sellforeignprocessorservice.dto;
 
 import lombok.*;
 
-import java.math.BigDecimal;
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TreasuryRateResponse {
+public class TreasuryRateRequest {
+    private String txId;
+    private String currencies;
     private String base;
-    private String target;
-    private BigDecimal rateExchange;
-    private String timestamp;
 }

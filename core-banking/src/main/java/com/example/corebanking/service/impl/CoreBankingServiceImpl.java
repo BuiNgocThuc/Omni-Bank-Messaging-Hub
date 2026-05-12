@@ -1,5 +1,6 @@
 package com.example.corebanking.service.impl;
 
+import com.example.common.enums.Currency;
 import com.example.corebanking.dto.HoldRequest;
 import com.example.corebanking.dto.HoldResponse;
 import com.example.corebanking.dto.ReleaseAndEntryRequest;
@@ -43,10 +44,10 @@ public class CoreBankingServiceImpl implements CoreBankingService {
 
         Account account = accountRepository.findByAccountNumberId(request.getAccountNumberId())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "ACCOUNT_NOT_FOUND", "Account not found"));
-
-        if (!account.getCurrency().equalsIgnoreCase(request.getCurrency())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "CURRENCY_MISMATCH", "Currency does not match account currency");
-        }
+//
+//        if (!account.getCurrency().equalsIgnoreCase(request.getCurrency())) {
+//            throw new BusinessException(HttpStatus.BAD_REQUEST, "CURRENCY_MISMATCH", "Currency does not match account currency");
+//        }
 
         if (account.getAvailableBalance().compareTo(request.getAmount()) < 0) {
             throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, "INSUFFICIENT_BALANCE", "Insufficient available balance");
@@ -55,7 +56,8 @@ public class CoreBankingServiceImpl implements CoreBankingService {
 
         int updatedRows = accountRepository.holdFundsAtomically( // này là hold
                 request.getAccountNumberId(),
-                request.getAmount()
+                request.getAmount(),
+                Currency.valueOf(request.getCurrency())
         );
         if (updatedRows == 0) {
             //check lại cái nữa
@@ -94,42 +96,71 @@ public class CoreBankingServiceImpl implements CoreBankingService {
     @Override
     @Transactional
     public ReleaseAndEntryResponse processReleaseAndEntry(ReleaseAndEntryRequest request) {
-        log.info("Processing Release and Entry for holdId: {}", request.getHoldId());
 
         Entry holdEntry = entryRepository.findById(request.getHoldId())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "HOLD_NOT_FOUND", "Hold entry not found"));
 
-        if (!"ACTIVE".equals(holdEntry.getStatus())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_HOLD_STATUS", "Hold is not active");
+
+        //release xong trừ
+        int updatedRealease = accountRepository.realeaseHold(
+                request.getAccountNumberId(),
+                holdEntry.getAmount(),
+                request.getBaseCurrency()
+        );
+
+        if (updatedRealease == 0) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_HOLD_OR_BALANCE", "Cannot release hold");
         }
 
-        Account account = accountRepository.findByAccountNumberId(request.getAccountNumberId())
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "ACCOUNT_NOT_FOUND", "Account not found"));
+        // cộng account còn lại
+        BigDecimal convertedAmount = holdEntry.getAmount()
+                .multiply(request.getRateExchange());
 
-        // ── Release Hold & Commit Transaction ──
-        account.setHeldBalance(account.getHeldBalance().subtract(holdEntry.getAmount()));
-        account.setTotalBalance(account.getTotalBalance().subtract(holdEntry.getAmount()));
-        accountRepository.save(account);
+        int updatedCredit = accountRepository.creditAfterRelease(
+                request.getAccountNumberId(),
+                convertedAmount,
+                request.getBaseCurrency()
+        );
 
-        holdEntry.setStatus("COMPLETED");
-        entryRepository.save(holdEntry);
+        if (updatedCredit == 0) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_CREDIT_AFTER_HOLD", "Cannot credit account after hold");
+        }
+
+        //holdEntry.setStatus("RELEASED");
+      //  entryRepository.save(holdEntry);
 
         // ── Create DEBIT Entry ──
-        String entryId = "ENTRY-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String entryDebitId = "ENTRY-DEBIT" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
         Entry debitEntry = Entry.builder()
-                .entryId(entryId)
+                .entryId(entryDebitId)
                 .txId(request.getTxId())
-                .accountNumberId(account.getAccountNumberId())
+                .accountNumberId(request.getAccountNumberId())
                 .type(EntryType.DEBIT)
                 .currency(holdEntry.getCurrency())
                 .amount(holdEntry.getAmount())
                 .rateExchange(request.getRateExchange())
-                .holdId(holdEntry.getEntryId())
-                .status("COMPLETED")
+//                .holdId(holdEntry.getEntryId())
+//                .status("COMPLETED")
                 .build();
         entryRepository.save(debitEntry);
+        String entryCreditId = "ENTRY-CREDIT" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 
-        log.info("Successfully released hold [{}] and created entry [{}] for txId: {}", request.getHoldId(), entryId, request.getTxId());
+        Entry creditEntry = Entry.builder()
+                .entryId(entryCreditId)
+                .txId(request.getTxId())
+                .accountNumberId(request.getAccountNumberId())
+                .type(EntryType.CREDIT)
+                .currency(request.getTargetCurrency().name())
+                .amount(convertedAmount)
+                .rateExchange(request.getRateExchange())
+//                .holdId(holdEntry.getEntryId())
+//                .status("COMPLETED")
+                .build();
+        entryRepository.save(creditEntry);
+
+
+      //  log.info("Successfully released hold [{}] and created entry [{}] for txId: {}", request.getHoldId(), entryId, request.getTxId());
 
         return ReleaseAndEntryResponse.builder()
                 .entryId(debitEntry.getEntryId())

@@ -1,8 +1,9 @@
-package com.example.sellforeignprocessorservice.dto;
+package com.example.treasuryservice.dto;
 
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -10,8 +11,9 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class TreasuryRateResponse {
+    private String txId;
     private String base;
     private String target;
     private BigDecimal rateExchange;
-    private String timestamp;
+    private LocalDateTime timestamp;
 }

@@ -14,7 +14,7 @@ services:
       - omnibank-net
 
   oracle-db:
-    image: oracle23:latest #docker pull container-registry.oracle.com/database/free:latest xong roi  docker tag container-registry.oracle.com/database/free:latest oracle23:latest
+    image: container-registry.oracle.com/database/free:latest
     container_name: omnibank-oracle
     ports:
       - "1521:1521"
