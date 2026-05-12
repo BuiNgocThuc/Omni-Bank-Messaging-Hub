@@ -1,45 +1,78 @@
 package com.example.common.config.api;
 
-
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.Instant;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@Getter
-@Setter
-@AllArgsConstructor
+@Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ApiResponse<T> {
 
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
     private Instant timestamp;
+
     private String status;
+
+    private String message;
+
     private T data;
 
-    public ApiResponse(String status, T data) {
-        this.timestamp = Instant.now();
-        this.status = status;
-        this.data = data;
+    private ErrorData error;
+
+    public static <T> ApiResponse<T> success(
+            String message,
+            T data
+    ) {
+        return ApiResponse.<T>builder()
+                .timestamp(Instant.now())
+                .status("SUCCESS")
+                .message(message)
+                .data(data)
+                .build();
     }
 
-    public static <T> ApiResponse<T> success(String status, T data) {
-        return new ApiResponse<>(status, data);
+    public static ApiResponse<Void> error(
+            String message,
+            String code
+    ) {
+        return ApiResponse.<Void>builder()
+                .timestamp(Instant.now())
+                .status("ERROR")
+                .message(message)
+                .error(new ErrorData(code, message))
+                .build();
     }
 
-    public static ApiResponse<ApiResponse.ErrorData> error(String status, String message, String code) {
-        return new ApiResponse<>(status, new ErrorData(code,message));
+    public static ApiResponse<Void> error(
+            String message,
+            String code,
+            String detail
+    ) {
+        return ApiResponse.<Void>builder()
+                .timestamp(Instant.now())
+                .status("ERROR")
+                .message(message)
+                .error(new ErrorData(code, detail))
+                .build();
     }
-
 
     @Getter
     @Setter
+    @NoArgsConstructor
     @AllArgsConstructor
     public static class ErrorData {
+
         private String code;
+
         private String message;
     }
 }

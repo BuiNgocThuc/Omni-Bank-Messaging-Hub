@@ -28,18 +28,22 @@ Hệ thống cung cấp nền tảng xử lý **giao dịch ngoại tệ** (**Fo
 > Xem sequence diagram đầy đủ tại: `sell-foreign-sequence-diagram.drawio`
 
 1. Client gửi yêu cầu đổi ngoại tệ
-2. SF Service validate request + đọc `idempotency_key` để check idempotency
-3. Push message vào MQ
-4. Trả API `202 Accepted`
-5. SF Processor consume message
-6. Gọi Treasury lấy exchange rate
-7. Lưu transaction detail
-8. Validate account qua Core Service
-9. Check balance
-10. Create `HOLD`
-11. Create ledger entry
-12. Update transaction `SUCCESS`
-13. Call API Notifications
+2. SF Service validate request + get request để check idempotency
+3. generate tx_id để trả response  
+4. Push message vào MQ
+5. Trả API accepted 202
+6. SF Processor consume message
+7. insert transaction + transaction detail
+8. Check balance
+9. Create HOLD (ghi nợ sổ cái)
+10. Call back SF Processor
+11. SF Processor check tỉ giá qua treasury
+12. Treasury trả về rate_exchange cho SF Processor cập nhật
+13. SF Processor gọi core bank thực hiện quy trình cộng trừ tiền
+14. Sau khi hoàn tất core banking trả về SF Processor
+15. SF Processor Update transaction SUCCESS
+16. Call api notifications
+
 
 ---
 
