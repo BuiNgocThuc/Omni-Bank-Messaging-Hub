@@ -30,8 +30,8 @@ public class ApiResponse<T> {
         return new ApiResponse<>(status, data);
     }
 
-    public static ApiResponse<ApiResponse.ErrorData> error(String status, String message) {
-        return new ApiResponse<>(status, new ErrorData(message));
+    public static ApiResponse<ApiResponse.ErrorData> error(String status, String message, String code) {
+        return new ApiResponse<>(status, new ErrorData(code,message));
     }
 
 
@@ -39,6 +39,7 @@ public class ApiResponse<T> {
     @Setter
     @AllArgsConstructor
     public static class ErrorData {
+        private String code;
         private String message;
     }
 }

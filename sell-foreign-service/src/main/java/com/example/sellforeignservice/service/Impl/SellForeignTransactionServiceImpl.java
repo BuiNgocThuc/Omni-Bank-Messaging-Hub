@@ -4,11 +4,11 @@ import com.example.common.config.api.ApiResponse;
 import com.example.common.constant.RabbitMQConstants;
 import com.example.common.dto.message.SellForeignMessage;
 import com.example.common.enums.Currency;
-import com.example.common.exception.BusinessException;
 import com.example.sellforeignservice.dto.request.SellForeignTransactionRequest;
 import com.example.sellforeignservice.dto.response.SellForeignTransactionResponse;
 import com.example.sellforeignservice.entity.SellForeignTransaction;
 import com.example.sellforeignservice.enums.TransactionStatus;
+import com.example.sellforeignservice.exception.BusinessException;
 import com.example.sellforeignservice.repository.TransactionRepository;
 import com.example.sellforeignservice.service.SellForeignTransactionService;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +31,6 @@ public class SellForeignTransactionServiceImpl implements SellForeignTransaction
     private final RabbitTemplate rabbitTemplate;
 
     @Override
-    @Transactional
     public ApiResponse<SellForeignTransactionResponse> exchange(SellForeignTransactionRequest request) {
 
         validateRequest(request);
@@ -92,6 +91,7 @@ public class SellForeignTransactionServiceImpl implements SellForeignTransaction
             throw new BusinessException("AMOUNT_NOT_POSITIVE", "Amount must be greater than 0");
         }
         if (request.getAmount().compareTo(new BigDecimal("0.01")) < 0) {
+
             throw new BusinessException("AMOUNT_TOO_SMALL", "Minimum amount is 0.01");
         }
 

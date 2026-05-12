@@ -3,10 +3,7 @@ package com.example.sellforeignservice.dto.request;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.math.BigDecimal;
 
@@ -14,6 +11,7 @@ import java.math.BigDecimal;
 @Setter
 @AllArgsConstructor
 @Builder
+@NoArgsConstructor
 public class SellForeignTransactionRequest {
 
     @NotBlank(message = "Idempotency key is required")

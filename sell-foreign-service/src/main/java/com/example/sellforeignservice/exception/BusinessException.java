@@ -1,5 +1,5 @@
 
-package com.example.common.exception;
+package com.example.sellforeignservice.exception;
 
 import lombok.Getter;
 import lombok.Setter;

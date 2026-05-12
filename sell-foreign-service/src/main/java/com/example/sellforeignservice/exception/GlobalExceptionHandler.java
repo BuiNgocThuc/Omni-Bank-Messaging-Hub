@@ -1,4 +1,4 @@
-package com.example.common.exception;
+package com.example.sellforeignservice.exception;
 
 import com.example.common.config.api.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;

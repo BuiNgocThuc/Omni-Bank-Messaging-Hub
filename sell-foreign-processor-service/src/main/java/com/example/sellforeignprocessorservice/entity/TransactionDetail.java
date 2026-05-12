@@ -43,9 +43,6 @@ public class TransactionDetail {
     @Column(name = "converted_amount", precision = 19, scale = 2)
     private BigDecimal convertedAmount;
 
-    @Column(name = "hold_id")
-    private String holdId;
-
     @Column(name = "entry_id")
     private String entryId;
 
