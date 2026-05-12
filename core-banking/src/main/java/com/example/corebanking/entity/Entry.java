@@ -40,11 +40,8 @@ public class Entry {
     @Column(name = "rate_exchange", precision = 19, scale = 4)
     private BigDecimal rateExchange;
 
-    @Column(name = "hold_id")
-    private String holdId;
-
-    @Column(name = "status", nullable = false, length = 20)
-    private String status;
+//    @Column(name = "status", nullable = false, length = 20)
+//    private String status;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)

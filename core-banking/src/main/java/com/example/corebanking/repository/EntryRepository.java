@@ -11,4 +11,6 @@ import java.util.Optional;
 public interface EntryRepository extends JpaRepository<Entry, String> {
     boolean existsByTxId(String txId);
     Optional<Entry> findByTxIdAndType(String txId, EntryType type);
+
+
 }

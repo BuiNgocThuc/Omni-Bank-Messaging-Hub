@@ -1,6 +1,5 @@
 package com.example.corebanking.service.impl;
 
-import com.example.common.exception.BusinessException;
 import com.example.corebanking.dto.HoldRequest;
 import com.example.corebanking.dto.HoldResponse;
 import com.example.corebanking.dto.ReleaseAndEntryRequest;
@@ -8,6 +7,7 @@ import com.example.corebanking.dto.ReleaseAndEntryResponse;
 import com.example.corebanking.entity.Account;
 import com.example.corebanking.entity.Entry;
 import com.example.corebanking.enums.EntryType;
+import com.example.corebanking.exception.BusinessException;
 import com.example.corebanking.repository.AccountRepository;
 import com.example.corebanking.repository.EntryRepository;
 import com.example.corebanking.service.CoreBankingService;
@@ -31,7 +31,7 @@ public class CoreBankingServiceImpl implements CoreBankingService {
 
     @Override
     @Transactional
-    public HoldResponse processHold(HoldRequest request) {
+    public HoldResponse processCheckAndHold(HoldRequest request) {
         log.info("Processing Hold for txId: {}", request.getTxId());
 
         if (request.getTxId() == null || request.getTxId().isBlank()) {
@@ -51,14 +51,24 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         if (account.getAvailableBalance().compareTo(request.getAmount()) < 0) {
             throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, "INSUFFICIENT_BALANCE", "Insufficient available balance");
         }
+        // ok đã validate và check xong balance rồi h bắt đầu hold
 
-        // ── Deduct available, add to held ──
-        account.setAvailableBalance(account.getAvailableBalance().subtract(request.getAmount()));
-        account.setHeldBalance(account.getHeldBalance().add(request.getAmount()));
-        accountRepository.save(account);
+        int updatedRows = accountRepository.holdFundsAtomically( // này là hold
+                request.getAccountNumberId(),
+                request.getAmount()
+        );
+        if (updatedRows == 0) {
+            //check lại cái nữa
+            boolean accountExists = accountRepository.existsByAccountNumberId(request.getAccountNumberId());
+            if (!accountExists) {
+                throw new BusinessException(HttpStatus.NOT_FOUND, "ACCOUNT_NOT_FOUND", "Account not found");
+            } else {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "INSUFFICIENT_FUNDS", "Not enough available balance");
+            }
+        }
 
-        // ── Create HOLD Entry ──
-        String holdId = "HOLD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        // sau khi hold, lưu vào entry/ ở đây để HOLD trước + UUID để dễ nhìn ấy mà
+         String holdId = "HOLD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         Entry holdEntry = Entry.builder()
                 .entryId(holdId)
                 .txId(request.getTxId())
@@ -66,7 +76,6 @@ public class CoreBankingServiceImpl implements CoreBankingService {
                 .type(EntryType.HOLD)
                 .amount(request.getAmount())
                 .currency(request.getCurrency())
-                .status("ACTIVE")
                 .build();
         entryRepository.save(holdEntry);
 
@@ -78,7 +87,6 @@ public class CoreBankingServiceImpl implements CoreBankingService {
                 .accountNumberId(holdEntry.getAccountNumberId())
                 .heldAmount(holdEntry.getAmount())
                 .currency(holdEntry.getCurrency())
-                .holdStatus(holdEntry.getStatus())
                 .createdAt(LocalDateTime.now().toString())
                 .build();
     }

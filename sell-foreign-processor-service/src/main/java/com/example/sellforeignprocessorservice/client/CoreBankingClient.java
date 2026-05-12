@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(name = "core-banking-service", url = "${feign.client.core-banking.url}")
 public interface CoreBankingClient {
 
-    @PostMapping("/api/v1/core/hold")
-    ExternalApiResponse<HoldResponse> hold(@RequestBody HoldRequest request);
+    @PostMapping("/api/v1/core/check-and-hold")
+    ExternalApiResponse<HoldResponse> checkAndHold(@RequestBody HoldRequest request);
 
     @PostMapping("/api/v1/core/release-and-entry")
     ExternalApiResponse<ReleaseAndEntryResponse> releaseAndEntry(@RequestBody ReleaseAndEntryRequest request);

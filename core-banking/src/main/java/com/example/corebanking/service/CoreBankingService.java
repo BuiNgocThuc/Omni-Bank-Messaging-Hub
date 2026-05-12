@@ -6,6 +6,6 @@ import com.example.corebanking.dto.ReleaseAndEntryRequest;
 import com.example.corebanking.dto.ReleaseAndEntryResponse;
 
 public interface CoreBankingService {
-    HoldResponse processHold(HoldRequest request);
+    HoldResponse processCheckAndHold(HoldRequest request);
     ReleaseAndEntryResponse processReleaseAndEntry(ReleaseAndEntryRequest request);
 }

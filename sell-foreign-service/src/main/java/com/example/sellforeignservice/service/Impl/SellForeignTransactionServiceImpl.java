@@ -37,16 +37,6 @@ public class SellForeignTransactionServiceImpl implements SellForeignTransaction
 
         UUID txId = UUID.randomUUID();
 
-        SellForeignTransaction transaction = SellForeignTransaction.builder()
-                .txId(txId)
-                .idempotencyKey(request.getIdempotencyKey())
-                .ownerId(request.getOwnerId())
-                .status(TransactionStatus.PROCESSING)
-                .build();
-
-        transactionRepository.save(transaction);
-        log.info("Saved transaction [{}] with status PROCESSING", txId);
-
         SellForeignMessage message = SellForeignMessage.builder()
                 .txId(txId)
                 .idempotencyKey(request.getIdempotencyKey())

@@ -1,5 +1,6 @@
 package com.example.sellforeignprocessorservice.entity;
 
+import com.example.common.enums.Currency;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -22,17 +23,20 @@ public class TransactionDetail {
     @Column(name = "detail_id", updatable = false, nullable = false)
     private UUID detailId;
 
-    @Column(name = "tx_id", nullable = false)
-    private UUID txId;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tx_id", referencedColumnName = "tx_id", nullable = false)
+    private SellForeignTransaction transaction;
 
     @Column(name = "account_number_id", nullable = false)
     private String accountNumberId;
 
     @Column(name = "base_currency", nullable = false)
-    private String baseCurrency;
+    @Enumerated(EnumType.STRING)
+    private Currency baseCurrency;
 
     @Column(name = "target_currency", nullable = false)
-    private String targetCurrency;
+    @Enumerated(EnumType.STRING)
+    private Currency targetCurrency;
 
     @Column(name = "source_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal sourceAmount;

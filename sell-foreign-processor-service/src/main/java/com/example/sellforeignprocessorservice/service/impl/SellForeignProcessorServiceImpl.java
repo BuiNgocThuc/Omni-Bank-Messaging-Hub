@@ -13,6 +13,7 @@ import com.example.sellforeignprocessorservice.service.SellForeignProcessorServi
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -30,13 +31,12 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
     @Override
     @Transactional
     public void processTransaction(SellForeignMessage message) {
-        log.info("Processing transaction [{}]", message.getTxId());
 
-        SellForeignTransaction transaction = transactionRepository.findById(message.getTxId())
-                .orElseThrow(() -> new RuntimeException("Transaction not found: " + message.getTxId()));
+        initTransaction(message);
+
 
         try {
-            // ── Step 1: Call Core Banking to check balance and HOLD ──
+            // call core banking để hold và check cái balance (chưa litmit)
             HoldRequest holdRequest = HoldRequest.builder()
                     .txId(message.getTxId().toString())
                     .accountNumberId(message.getAccountNumberId())
@@ -44,12 +44,16 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
                     .currency(message.getBaseCurrency().name())
                     .amount(message.getAmount())
                     .build();
-
-            ExternalApiResponse<HoldResponse> holdResponse = coreBankingClient.hold(holdRequest);
+            //1.check balance and hold
+            ExternalApiResponse<HoldResponse> holdResponse = coreBankingClient.checkAndHold(holdRequest);
             HoldResponse holdData = holdResponse.getData();
             log.info("Hold success [{}] for tx [{}]", holdData.getHoldId(), message.getTxId());
 
-            // ── Step 2: Get exchange rate from Treasury ──
+
+
+
+
+            // 2. sau khi ok rồi h đi đổi tỉ giá
             ExternalApiResponse<TreasuryRateResponse> rateResponse = treasuryClient.getRate(
                     message.getBaseCurrency().name(),
                     message.getTargetCurrency().name(),
@@ -117,4 +121,29 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
             transactionRepository.save(transaction);
         }
     }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    protected void initTransaction(SellForeignMessage message) {
+        log.info("Processing transaction [{}]", message.getTxId());
+
+        SellForeignTransaction transaction = SellForeignTransaction.builder()
+                .txId(message.getTxId())
+                .idempotencyKey(message.getIdempotencyKey())
+                .ownerId(message.getOwnerId())
+                .status(TransactionStatus.PROCESSING)
+                .build();
+
+        TransactionDetail detail = TransactionDetail.builder()
+                .accountNumberId(message.getAccountNumberId())
+                .baseCurrency(message.getBaseCurrency() != null ? message.getBaseCurrency() : null)
+                .targetCurrency(message.getTargetCurrency() != null ? message.getTargetCurrency() : null)
+                .sourceAmount(message.getAmount())
+                .transaction(transaction)
+                .build();
+
+        transaction.setDetail(detail);
+
+        transactionRepository.save(transaction);
+    }
+
 }

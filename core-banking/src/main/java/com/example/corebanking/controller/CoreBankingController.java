@@ -22,10 +22,10 @@ public class CoreBankingController {
 
     private final CoreBankingService coreBankingService;
 
-    @PostMapping("/hold")
-    public ResponseEntity<ApiResponse<HoldResponse>> hold(@RequestBody HoldRequest request) {
+    @PostMapping("/check-and-hold")
+    public ResponseEntity<ApiResponse<HoldResponse>> CheckAndHold(@RequestBody HoldRequest request) {
         log.info("Received request for hold for txId: {}", request.getTxId());
-        HoldResponse responseData = coreBankingService.processHold(request);
+        HoldResponse responseData = coreBankingService.processCheckAndHold(request);
         return ResponseEntity.ok(ApiResponse.success("SUCCESS", responseData));
     }
 
