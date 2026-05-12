@@ -15,6 +15,7 @@
         <module name="transaction-service" />
         <module name="currency-exchange-service" />
         <module name="sell-foreign-processor-service" />
+        <module name="notification-service" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>

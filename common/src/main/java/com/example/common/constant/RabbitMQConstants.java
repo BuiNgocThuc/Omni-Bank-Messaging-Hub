@@ -2,6 +2,8 @@ package com.example.common.constant;
 
 public class RabbitMQConstants {
 
+    private RabbitMQConstants() {}
+
     public static final String TOPIC_EXCHANGE = "omni.banking.topic";
 
     public static final String QUEUE_PROCESSOR = "q.exchange.processor";
@@ -16,5 +18,8 @@ public class RabbitMQConstants {
     public static final String ROUTING_CONVERT = "pay.convert";
     public static final String ROUTING_LEDGER_AND_BALANCE = "pay.ledger";
     public static final String ROUTING_TRANSACTION_UPDATE = "pay.transaction.update";
+
+    public static final String QUEUE_NOTIFICATION = "q.notification";
+    public static final String ROUTING_NOTIFICATION = "notify.transaction.completed";
 
 }

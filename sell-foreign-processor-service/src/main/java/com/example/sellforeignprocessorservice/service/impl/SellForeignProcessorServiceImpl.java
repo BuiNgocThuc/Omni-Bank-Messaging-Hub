@@ -1,5 +1,6 @@
 package com.example.sellforeignprocessorservice.service.impl;
 
+import com.example.common.dto.message.NotificationEvent;
 import com.example.common.dto.message.SellForeignMessage;
 import com.example.sellforeignprocessorservice.client.CoreBankingClient;
 import com.example.sellforeignprocessorservice.client.TreasuryClient;
@@ -7,6 +8,7 @@ import com.example.sellforeignprocessorservice.dto.*;
 import com.example.sellforeignprocessorservice.entity.SellForeignTransaction;
 import com.example.sellforeignprocessorservice.entity.TransactionDetail;
 import com.example.sellforeignprocessorservice.enums.TransactionStatus;
+import com.example.sellforeignprocessorservice.publisher.NotificationEventPublisher;
 import com.example.sellforeignprocessorservice.repository.TransactionDetailRepository;
 import com.example.sellforeignprocessorservice.repository.TransactionRepository;
 import com.example.sellforeignprocessorservice.service.SellForeignProcessorService;
@@ -28,6 +30,7 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
     private final TransactionDetailRepository transactionDetailRepository;
     private final TreasuryClient treasuryClient;
     private final CoreBankingClient coreBankingClient;
+    private final NotificationEventPublisher notificationEventPublisher;
 
     @Override
     @Transactional
@@ -98,6 +101,20 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
             transactionRepository.save(transaction);
             log.info("Transaction [{}] completed successfully", message.getTxId());
 
+            // ── Step 6: Publish notification event ──
+            notificationEventPublisher.publishTransactionResult(
+                    NotificationEvent.builder()
+                            .txId(message.getTxId().toString())
+                            .ownerId(message.getOwnerId())
+                            .status("SUCCESS")
+                            .baseCurrency(message.getBaseCurrency().name())
+                            .targetCurrency(message.getTargetCurrency().name())
+                            .sourceAmount(message.getAmount())
+                            .convertedAmount(rateData.getConvertedAmount())
+                            .timestamp(java.time.Instant.now())
+                            .build()
+            );
+
         } catch (Exception e) {
             log.error("Transaction [{}] failed: {}", message.getTxId(), e.getMessage(), e);
 
@@ -116,6 +133,20 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
 
             transaction.setStatus(TransactionStatus.FAILED);
             transactionRepository.save(transaction);
+
+            // Publish notification event for failure
+            notificationEventPublisher.publishTransactionResult(
+                    NotificationEvent.builder()
+                            .txId(message.getTxId().toString())
+                            .ownerId(message.getOwnerId())
+                            .status("FAILED")
+                            .baseCurrency(message.getBaseCurrency().name())
+                            .targetCurrency(message.getTargetCurrency().name())
+                            .sourceAmount(message.getAmount())
+                            .failureReason(e.getMessage())
+                            .timestamp(java.time.Instant.now())
+                            .build()
+            );
         }
     }
 
