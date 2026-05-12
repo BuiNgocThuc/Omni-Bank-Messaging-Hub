@@ -110,7 +110,7 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
                             .baseCurrency(message.getBaseCurrency().name())
                             .targetCurrency(message.getTargetCurrency().name())
                             .sourceAmount(message.getAmount())
-                            .convertedAmount(rateData.getConvertedAmount())
+                            .convertedAmount(convertedAmount)
                             .timestamp(java.time.Instant.now())
                             .build()
             );

@@ -16,14 +16,14 @@ public class GlobalExceptionHandler {
 
 
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ApiResponse<ApiResponse.ErrorData>> handleBusiness(
+    public ResponseEntity<ApiResponse<Void>> handleBusiness(
             BusinessException ex, HttpServletRequest request) {
 
         log.warn("[{}] {} - {}", ex.getCode(), request.getRequestURI(), ex.getMessage());
 
-        return ResponseEntity.status(ex.getStatus()).body(
-                ApiResponse.error(ex.getStatus().toString(), ex.getMessage(),ex.getCode())
-        );
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(ApiResponse.error(ex.getMessage(), ex.getCode()));
     }
 
 
