@@ -1,10 +1,13 @@
 package com.example.corebanking.service.impl;
 
+import com.example.common.config.api.ApiCode;
 import com.example.common.enums.Currency;
 import com.example.corebanking.dto.HoldRequest;
 import com.example.corebanking.dto.HoldResponse;
 import com.example.corebanking.dto.ReleaseAndEntryRequest;
 import com.example.corebanking.dto.ReleaseAndEntryResponse;
+import com.example.corebanking.dto.ReleaseHoldRequest;
+import com.example.corebanking.dto.ReleaseHoldResponse;
 import com.example.corebanking.entity.Account;
 import com.example.corebanking.entity.Entry;
 import com.example.corebanking.enums.EntryType;
@@ -36,21 +39,41 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         log.info("Processing Hold for txId: {}", request.getTxId());
 
         if (request.getTxId() == null || request.getTxId().isBlank()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "MISSING_FIELD", "txId is required");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, ApiCode.MISSING_FIELD, "Missing required field");
         }
         if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "AMOUNT_NOT_POSITIVE", "Amount must be positive");
+            throw new BusinessException(HttpStatus.BAD_REQUEST, ApiCode.AMOUNT_NOT_POSITIVE, "Amount must be greater than 0");
+        }
+
+        // Idempotency guard: do not hold twice for the same transaction.
+        Entry existingHold = entryRepository.findByTxIdAndType(request.getTxId(), EntryType.HOLD)
+                .orElse(null);
+        if (existingHold != null) {
+            return HoldResponse.builder()
+                    .holdId(existingHold.getEntryId())
+                    .txId(existingHold.getTxId())
+                    .accountNumberId(existingHold.getAccountNumberId())
+                    .heldAmount(existingHold.getAmount())
+                    .currency(existingHold.getCurrency())
+                    .createdAt(existingHold.getCreatedAt().toString())
+                    .build();
         }
 
         Account account = accountRepository.findByAccountNumberId(request.getAccountNumberId())
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "ACCOUNT_NOT_FOUND", "Account not found"));
-//
-//        if (!account.getCurrency().equalsIgnoreCase(request.getCurrency())) {
-//            throw new BusinessException(HttpStatus.BAD_REQUEST, "CURRENCY_MISMATCH", "Currency does not match account currency");
-//        }
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found"));
+
+        if (!account.getOwnerId().equals(request.getOwnerId())) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found");
+        }
+        if (!"ACTIVE".equalsIgnoreCase(account.getStatus())) {
+            throw new BusinessException(HttpStatus.LOCKED, ApiCode.FX_ERR_010, "Account locked");
+        }
+        if (!account.getCurrency().name().equalsIgnoreCase(request.getCurrency())) {
+            throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, ApiCode.FX_ERR_007, "Source account currency mismatch");
+        }
 
         if (account.getAvailableBalance().compareTo(request.getAmount()) < 0) {
-            throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, "INSUFFICIENT_BALANCE", "Insufficient available balance");
+            throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, ApiCode.FX_ERR_002, "Insufficient funds");
         }
         // ok đã validate và check xong balance rồi h bắt đầu hold
 
@@ -63,9 +86,9 @@ public class CoreBankingServiceImpl implements CoreBankingService {
             //check lại cái nữa
             boolean accountExists = accountRepository.existsByAccountNumberId(request.getAccountNumberId());
             if (!accountExists) {
-                throw new BusinessException(HttpStatus.NOT_FOUND, "ACCOUNT_NOT_FOUND", "Account not found");
+                throw new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found");
             } else {
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "INSUFFICIENT_FUNDS", "Not enough available balance");
+                throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, ApiCode.FX_ERR_002, "Insufficient funds");
             }
         }
 
@@ -97,9 +120,33 @@ public class CoreBankingServiceImpl implements CoreBankingService {
     @Transactional
     public ReleaseAndEntryResponse processReleaseAndEntry(ReleaseAndEntryRequest request) {
 
-        Entry holdEntry = entryRepository.findById(request.getHoldId())
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "HOLD_NOT_FOUND", "Hold entry not found"));
+        // Idempotency guard: do not debit/credit twice for the same transaction.
+        Entry existingDebit = entryRepository.findByTxIdAndType(request.getTxId(), EntryType.DEBIT)
+                .orElse(null);
+        if (existingDebit != null) {
+            return ReleaseAndEntryResponse.builder()
+                    .entryId(existingDebit.getEntryId())
+                    .holdId(request.getHoldId())
+                    .txId(existingDebit.getTxId())
+                    .status("SUCCESS")
+                    .createdAt(existingDebit.getCreatedAt().toString())
+                    .build();
+        }
 
+        Entry holdEntry = entryRepository.findById(request.getHoldId())
+                .orElseThrow(() -> new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, ApiCode.SYS_ERR_001, "Ledger posting failed"));
+
+        Account sourceAccount = accountRepository.findByAccountNumberId(request.getAccountNumberId())
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found"));
+        if (!sourceAccount.getOwnerId().equals(request.getOwnerId())) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found");
+        }
+        if (!sourceAccount.getCurrency().equals(request.getBaseCurrency())) {
+            throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, ApiCode.FX_ERR_007, "Source account currency mismatch");
+        }
+
+        Account targetAccount = accountRepository.findByOwnerIdAndCurrency(request.getOwnerId(), request.getTargetCurrency())
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found"));
 
         //release xong trừ
         int updatedRealease = accountRepository.realeaseHold(
@@ -109,7 +156,7 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         );
 
         if (updatedRealease == 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_HOLD_OR_BALANCE", "Cannot release hold");
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, ApiCode.SYS_ERR_001, "Ledger posting failed");
         }
 
         // cộng account còn lại
@@ -117,13 +164,14 @@ public class CoreBankingServiceImpl implements CoreBankingService {
                 .multiply(request.getRateExchange());
 
         int updatedCredit = accountRepository.creditAfterRelease(
-                request.getAccountNumberId(),
+                // Credit the converted amount to the target-currency account.
+                targetAccount.getAccountNumberId(),
                 convertedAmount,
-                request.getBaseCurrency()
+                request.getTargetCurrency()
         );
 
         if (updatedCredit == 0) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_CREDIT_AFTER_HOLD", "Cannot credit account after hold");
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, ApiCode.SYS_ERR_001, "Ledger posting failed");
         }
 
         //holdEntry.setStatus("RELEASED");
@@ -149,7 +197,7 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         Entry creditEntry = Entry.builder()
                 .entryId(entryCreditId)
                 .txId(request.getTxId())
-                .accountNumberId(request.getAccountNumberId())
+                .accountNumberId(targetAccount.getAccountNumberId())
                 .type(EntryType.CREDIT)
                 .currency(request.getTargetCurrency().name())
                 .amount(convertedAmount)
@@ -167,6 +215,52 @@ public class CoreBankingServiceImpl implements CoreBankingService {
                 .holdId(holdEntry.getEntryId())
                 .txId(debitEntry.getTxId())
                 .status("SUCCESS")
+                .createdAt(LocalDateTime.now().toString())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public ReleaseHoldResponse processReleaseHold(ReleaseHoldRequest request) {
+        Entry holdEntry = entryRepository.findById(request.getHoldId())
+                .orElseThrow(() -> new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, ApiCode.SYS_ERR_001, "Ledger posting failed"));
+
+        // Idempotency guard for compensation retries.
+        Entry existingRelease = entryRepository.findByTxIdAndType(request.getTxId(), EntryType.RELEASE)
+                .orElse(null);
+        if (existingRelease != null) {
+            return ReleaseHoldResponse.builder()
+                    .holdId(request.getHoldId())
+                    .txId(request.getTxId())
+                    .status("RELEASED")
+                    .createdAt(existingRelease.getCreatedAt().toString())
+                    .build();
+        }
+
+        int updatedRows = accountRepository.releaseHoldOnly(
+                request.getAccountNumberId(),
+                holdEntry.getAmount(),
+                Currency.valueOf(holdEntry.getCurrency())
+        );
+
+        if (updatedRows == 0) {
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, ApiCode.SYS_ERR_001, "Ledger posting failed");
+        }
+
+        Entry releaseEntry = Entry.builder()
+                .entryId("ENTRY-RELEASE" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .txId(request.getTxId())
+                .accountNumberId(request.getAccountNumberId())
+                .type(EntryType.RELEASE)
+                .currency(holdEntry.getCurrency())
+                .amount(holdEntry.getAmount())
+                .build();
+        entryRepository.save(releaseEntry);
+
+        return ReleaseHoldResponse.builder()
+                .holdId(request.getHoldId())
+                .txId(request.getTxId())
+                .status("RELEASED")
                 .createdAt(LocalDateTime.now().toString())
                 .build();
     }

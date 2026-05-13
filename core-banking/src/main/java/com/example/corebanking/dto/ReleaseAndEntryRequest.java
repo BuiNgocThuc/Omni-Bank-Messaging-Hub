@@ -16,5 +16,6 @@ public class ReleaseAndEntryRequest {
     private Currency baseCurrency;
     private Currency targetCurrency;
     private String accountNumberId;
+    private String ownerId; //cần ownerID để validate tiền đúng useer
     private BigDecimal rateExchange;
 }

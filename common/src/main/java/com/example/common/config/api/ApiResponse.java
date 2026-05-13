@@ -29,13 +29,12 @@ public class ApiResponse<T> {
     private ErrorData error;
 
     public static <T> ApiResponse<T> success(
-            String message,
+            String status,
             T data
     ) {
         return ApiResponse.<T>builder()
                 .timestamp(Instant.now())
-                .status("SUCCESS")
-                .message(message)
+                .status(status)
                 .data(data)
                 .build();
     }
@@ -47,7 +46,6 @@ public class ApiResponse<T> {
         return ApiResponse.<Void>builder()
                 .timestamp(Instant.now())
                 .status("ERROR")
-                .message(message)
                 .error(new ErrorData(code, message))
                 .build();
     }
@@ -60,7 +58,6 @@ public class ApiResponse<T> {
         return ApiResponse.<Void>builder()
                 .timestamp(Instant.now())
                 .status("ERROR")
-                .message(message)
                 .error(new ErrorData(code, detail))
                 .build();
     }

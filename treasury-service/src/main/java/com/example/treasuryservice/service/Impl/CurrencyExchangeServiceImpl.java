@@ -1,13 +1,15 @@
 package com.example.treasuryservice.service.Impl;
 
-import com.example.common.dto.message.PaymentMessage;
-import com.example.common.enums.TransactionStatus;
+import com.example.common.config.api.ApiCode;
+import com.example.common.enums.Currency;
 import com.example.sellforeignprocessorservice.dto.TreasuryRateRequest;
 import com.example.treasuryservice.client.FxRatesClient;
 import com.example.treasuryservice.dto.TreasuryRateResponse;
+import com.example.treasuryservice.exception.BusinessException;
 import com.example.treasuryservice.service.ICurrencyExchangeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -21,15 +23,36 @@ public class CurrencyExchangeServiceImpl implements ICurrencyExchangeService {
 
     @Override
     public TreasuryRateResponse processExchange(TreasuryRateRequest request) {
-
         validateMessage(request);
 
-        // Gọi API external của fxrate với 3 params lấy từ PaymentMessage
-        BigDecimal rate = fxRatesClient.getRate(
-                request.getBase(),    // base
-                request.getCurrencies(),    // currencies (target)
-                1 // là 1 để lấy tỉ giá 1:1
-        );
+        BigDecimal rate;
+        try {
+            rate = fxRatesClient.getRate(
+                    request.getBase(),
+                    request.getCurrencies(),
+                    1
+            );
+        } catch (IllegalStateException ex) {
+            if (ex.getMessage() != null && ex.getMessage().contains("Rate not found")) {
+                throw new BusinessException(
+                        HttpStatus.BAD_REQUEST,
+                        ApiCode.FX_ERR_001,
+                        "Invalid currency pair"
+                );
+            }
+            throw new BusinessException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    ApiCode.TREASURY_ERR_001,
+                    "Treasury unavailable"
+            );
+        } catch (RuntimeException ex) {
+            throw new BusinessException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    ApiCode.TREASURY_ERR_001,
+                    "Treasury unavailable"
+            );
+        }
+
         TreasuryRateResponse treasuryRateResponse = TreasuryRateResponse
                 .builder()
                 .txId(request.getTxId())
@@ -39,25 +62,39 @@ public class CurrencyExchangeServiceImpl implements ICurrencyExchangeService {
                 .timestamp(LocalDateTime.now())
                 .build();
 
-        log.info(" TX {} | {} {} → {} {}",
+        log.info("TX {} | {} -> {} | rate={} | timestamp={}",
                 treasuryRateResponse.getTxId(),
-                treasuryRateResponse.getBase(), treasuryRateResponse.getTarget(),
-                rate, treasuryRateResponse.getTimestamp());
+                treasuryRateResponse.getBase(),
+                treasuryRateResponse.getTarget(),
+                rate,
+                treasuryRateResponse.getTimestamp());
 
         return treasuryRateResponse;
     }
 
     private void validateMessage(TreasuryRateRequest request) {
-        if (request.getTxId() == null) {
-            throw new IllegalArgumentException("transactionId is null");
+        if (request == null || request.getTxId() == null) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    ApiCode.MISSING_FIELD,
+                    "Missing required field"
+            );
         }
-        if (request.getCurrencies() == null
-                || request.getBase() == null) {
-            throw new IllegalArgumentException("Missing currency");
+        if (request.getCurrencies() == null || request.getBase() == null) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    ApiCode.MISSING_FIELD,
+                    "Missing required field"
+            );
         }
-
-        if (request.getCurrencies().equalsIgnoreCase(request.getBase())) {
-            throw new IllegalArgumentException("Source and target currency must be different");
+        if (!Currency.isSupported(request.getBase())
+                || !Currency.isSupported(request.getCurrencies())
+                || request.getCurrencies().equalsIgnoreCase(request.getBase())) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    ApiCode.FX_ERR_001,
+                    "Invalid currency pair"
+            );
         }
     }
 }

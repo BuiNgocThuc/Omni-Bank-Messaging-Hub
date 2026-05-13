@@ -18,7 +18,7 @@ public class SellForeignTransactionRequest {
     @JsonProperty("idempotency_key")
     private String idempotencyKey;
 
-    @NotNull(message = "Owner id is required")
+    @NotBlank(message = "Owner id is required")
     @JsonProperty("owner_id")
     private String ownerId;
 

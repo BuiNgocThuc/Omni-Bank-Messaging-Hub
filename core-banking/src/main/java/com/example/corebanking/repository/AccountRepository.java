@@ -14,6 +14,7 @@ import java.util.Optional;
 @Repository
 public interface AccountRepository extends JpaRepository<Account, String> {
     Optional<Account> findByAccountNumberId(String accountNumberId);
+    Optional<Account> findByOwnerIdAndCurrency(String ownerId, Currency currency);
 
     @Modifying
     @Query("""
@@ -41,6 +42,19 @@ public interface AccountRepository extends JpaRepository<Account, String> {
     int realeaseHold(@Param("accountNumberId") String accountNumberId,
                      @Param("amount") BigDecimal amount,
                      @Param("currency") Currency currency);
+
+    @Modifying
+    @Query("""
+           UPDATE Account a
+           SET a.heldBalance = a.heldBalance - :amount,
+               a.availableBalance = a.availableBalance + :amount
+           WHERE a.accountNumberId = :accountNumberId
+              AND a.currency = :currency
+              AND a.heldBalance >= :amount
+           """)
+    int releaseHoldOnly(@Param("accountNumberId") String accountNumberId,
+                        @Param("amount") BigDecimal amount,
+                        @Param("currency") Currency currency);
 
 
     @Modifying

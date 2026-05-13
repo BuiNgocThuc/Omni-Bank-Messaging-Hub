@@ -1,7 +1,7 @@
-com/example/notificationservice/client/NotificationClient.class
-com/example/notificationservice/client/InAppNotificationClient.class
-com/example/notificationservice/service/NotificationService.class
-com/example/notificationservice/service/impl/NotificationServiceImpl.class
-com/example/notificationservice/listener/NotificationListener.class
-com/example/notificationservice/NotificationServiceApplication.class
-com/example/notificationservice/config/RabbitMQConfig.class
+com\example\notificationservice\service\NotificationService.class
+com\example\notificationservice\client\InAppNotificationClient.class
+com\example\notificationservice\service\impl\NotificationServiceImpl.class
+com\example\notificationservice\client\NotificationClient.class
+com\example\notificationservice\listener\NotificationListener.class
+com\example\notificationservice\config\RabbitMQConfig.class
+com\example\notificationservice\NotificationServiceApplication.class

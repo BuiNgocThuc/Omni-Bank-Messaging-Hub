@@ -1,4 +1,4 @@
-package com.example.sellforeignservice.exception;
+package com.example.treasuryservice.exception;
 
 import com.example.common.config.api.ApiCode;
 import com.example.common.config.api.ApiResponse;
@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -26,13 +25,6 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage(), ex.getCode()));
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error("Missing required field", ApiCode.MISSING_FIELD));
-    }
-
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidJson(HttpMessageNotReadableException ex) {
         return ResponseEntity
@@ -48,6 +40,6 @@ public class GlobalExceptionHandler {
         log.error("Unhandled exception at [{}]", request.getRequestURI(), ex);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Internal error", ApiCode.INTERNAL_ERROR));
+                .body(ApiResponse.error("Internal error", ApiCode.SYS_ERR_001));
     }
 }

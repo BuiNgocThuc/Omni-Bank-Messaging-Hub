@@ -1,7 +1,7 @@
-/home/ubuntu/Data_D/SmartOSC/project/Omni-Bank-Messaging-Hub/notification-service/src/main/java/com/example/notificationservice/service/impl/NotificationServiceImpl.java
-/home/ubuntu/Data_D/SmartOSC/project/Omni-Bank-Messaging-Hub/notification-service/src/main/java/com/example/notificationservice/client/NotificationClient.java
-/home/ubuntu/Data_D/SmartOSC/project/Omni-Bank-Messaging-Hub/notification-service/src/main/java/com/example/notificationservice/config/RabbitMQConfig.java
-/home/ubuntu/Data_D/SmartOSC/project/Omni-Bank-Messaging-Hub/notification-service/src/main/java/com/example/notificationservice/listener/NotificationListener.java
-/home/ubuntu/Data_D/SmartOSC/project/Omni-Bank-Messaging-Hub/notification-service/src/main/java/com/example/notificationservice/NotificationServiceApplication.java
-/home/ubuntu/Data_D/SmartOSC/project/Omni-Bank-Messaging-Hub/notification-service/src/main/java/com/example/notificationservice/client/InAppNotificationClient.java
-/home/ubuntu/Data_D/SmartOSC/project/Omni-Bank-Messaging-Hub/notification-service/src/main/java/com/example/notificationservice/service/NotificationService.java
+C:\Users\Win10\Desktop\github clone\Omni-Bank-Messaging-Hub\notification-service\src\main\java\com\example\notificationservice\client\InAppNotificationClient.java
+C:\Users\Win10\Desktop\github clone\Omni-Bank-Messaging-Hub\notification-service\src\main\java\com\example\notificationservice\client\NotificationClient.java
+C:\Users\Win10\Desktop\github clone\Omni-Bank-Messaging-Hub\notification-service\src\main\java\com\example\notificationservice\config\RabbitMQConfig.java
+C:\Users\Win10\Desktop\github clone\Omni-Bank-Messaging-Hub\notification-service\src\main\java\com\example\notificationservice\listener\NotificationListener.java
+C:\Users\Win10\Desktop\github clone\Omni-Bank-Messaging-Hub\notification-service\src\main\java\com\example\notificationservice\NotificationServiceApplication.java
+C:\Users\Win10\Desktop\github clone\Omni-Bank-Messaging-Hub\notification-service\src\main\java\com\example\notificationservice\service\impl\NotificationServiceImpl.java
+C:\Users\Win10\Desktop\github clone\Omni-Bank-Messaging-Hub\notification-service\src\main\java\com\example\notificationservice\service\NotificationService.java

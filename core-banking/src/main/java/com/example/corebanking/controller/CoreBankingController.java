@@ -5,6 +5,8 @@ import com.example.corebanking.dto.HoldRequest;
 import com.example.corebanking.dto.HoldResponse;
 import com.example.corebanking.dto.ReleaseAndEntryRequest;
 import com.example.corebanking.dto.ReleaseAndEntryResponse;
+import com.example.corebanking.dto.ReleaseHoldRequest;
+import com.example.corebanking.dto.ReleaseHoldResponse;
 import com.example.corebanking.service.CoreBankingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +35,13 @@ public class CoreBankingController {
     public ResponseEntity<ApiResponse<ReleaseAndEntryResponse>> releaseAndEntry(@RequestBody ReleaseAndEntryRequest request) {
         log.info("Received request for release-and-entry for holdId: {}", request.getHoldId());
         ReleaseAndEntryResponse responseData = coreBankingService.processReleaseAndEntry(request);
+        return ResponseEntity.ok(ApiResponse.success("SUCCESS", responseData));
+    }
+    // trả lại tiền đã hold nếu error
+    @PostMapping("/release-hold")
+    public ResponseEntity<ApiResponse<ReleaseHoldResponse>> releaseHold(@RequestBody ReleaseHoldRequest request) {
+        log.info("Received request for release-hold for holdId: {}", request.getHoldId());
+        ReleaseHoldResponse responseData = coreBankingService.processReleaseHold(request);
         return ResponseEntity.ok(ApiResponse.success("SUCCESS", responseData));
     }
 }

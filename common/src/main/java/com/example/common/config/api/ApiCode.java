@@ -6,7 +6,8 @@ public class ApiCode {
 
     // ========= COMMON =========
     public static final String SUCCESS                 = "SUCCESS";
-    public static final String INTERNAL_ERROR          = "SYS_ERR_001";
+    public static final String SYS_ERR_001             = "SYS_ERR_001";
+    public static final String INTERNAL_ERROR          = SYS_ERR_001;
 
     // ========= REQUEST =========
     public static final String MISSING_FIELD           = "MISSING_FIELD";
