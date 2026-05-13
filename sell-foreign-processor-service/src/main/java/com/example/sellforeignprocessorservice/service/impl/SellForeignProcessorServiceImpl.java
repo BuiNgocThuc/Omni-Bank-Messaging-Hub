@@ -295,4 +295,30 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
                         .build()
         );
     }
+
+    @Override
+    public TransactionalResultResponse getTransactionResult(UUID txId) {
+
+        SellForeignTransaction transaction = transactionRepository.findById(txId).orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + txId));
+
+        TransactionalResultResponse.DetailResponse detailResponse = transactionDetailRepository.findByTxId(txId)
+                .map(detail -> TransactionalResultResponse.DetailResponse.builder()
+                        .accountNumberId(detail.getAccountNumberId())
+                        .baseCurrency(detail.getBaseCurrency().name())
+                        .targetCurrency(detail.getTargetCurrency().name())
+                        .sourceAmount(detail.getSourceAmount())
+                        .rateExchange(detail.getRateExchange())
+                        .convertedAmount(detail.getConvertedAmount())
+                        .failureReason(detail.getFailureReason())
+                        .completedAt(detail.getCompletedAt())
+                        .build())
+                .orElse(null);
+
+        return TransactionalResultResponse.builder()
+                .txId(transaction.getTxId().toString())
+                .transactionStatus(transaction.getStatus().name())
+                .detail(detailResponse)
+                .build();
+    }
 }
+
