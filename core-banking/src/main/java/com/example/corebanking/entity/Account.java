@@ -20,7 +20,7 @@ public class Account {
     private String accountNumberId;
 
     @Column(name = "customer_id", nullable = false)
-    private String ownerId;
+    private String customerId;
 
     @Column(name = "currency", nullable = false, length = 3)
     @Enumerated(EnumType.STRING)

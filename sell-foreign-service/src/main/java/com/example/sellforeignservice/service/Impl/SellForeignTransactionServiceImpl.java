@@ -45,15 +45,15 @@ public class SellForeignTransactionServiceImpl implements SellForeignTransaction
         SellForeignTransaction transaction = SellForeignTransaction.builder()
                 .txId(txId)
                 .idempotencyKey(request.getIdempotencyKey())
-                .ownerId(request.getOwnerId())
-                .status(TransactionStatus.PROCESSING)
+                .ownerId(request.getCustomerId())
+                .status(TransactionStatus.PENDING)
                 .build();
         transactionRepository.save(transaction);
 
         SellForeignMessage message = SellForeignMessage.builder()
                 .txId(txId)
                 .idempotencyKey(request.getIdempotencyKey())
-                .ownerId(request.getOwnerId())
+                .ownerId(request.getCustomerId())
                 .accountNumberId(request.getAccountNumberId())
                 .baseCurrency(Currency.valueOf(request.getBaseCurrency().toUpperCase()))
                 .targetCurrency(Currency.valueOf(request.getTargetCurrency().toUpperCase()))

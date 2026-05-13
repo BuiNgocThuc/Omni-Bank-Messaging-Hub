@@ -14,7 +14,7 @@ import java.util.Optional;
 @Repository
 public interface AccountRepository extends JpaRepository<Account, String> {
     Optional<Account> findByAccountNumberId(String accountNumberId);
-    Optional<Account> findByOwnerIdAndCurrency(String ownerId, Currency currency);
+    Optional<Account> findByCustomerIdAndCurrency(String ownerId, Currency currency);
 
     @Modifying
     @Query("""

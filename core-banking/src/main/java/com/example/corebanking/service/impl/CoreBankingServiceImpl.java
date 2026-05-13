@@ -62,7 +62,7 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         Account account = accountRepository.findByAccountNumberId(request.getAccountNumberId())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found"));
 
-        if (!account.getOwnerId().equals(request.getOwnerId())) {
+        if (!account.getCustomerId().equals(request.getOwnerId())) {
             throw new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found");
         }
         if (!"ACTIVE".equalsIgnoreCase(account.getStatus())) {
@@ -93,7 +93,7 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         }
 
         // sau khi hold, lưu vào entry/ ở đây để HOLD trước + UUID để dễ nhìn ấy mà
-         String holdId = "HOLD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+         String holdId = "ENTRY-HOLD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         Entry holdEntry = Entry.builder()
                 .entryId(holdId)
                 .txId(request.getTxId())
@@ -138,14 +138,14 @@ public class CoreBankingServiceImpl implements CoreBankingService {
 
         Account sourceAccount = accountRepository.findByAccountNumberId(request.getAccountNumberId())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found"));
-        if (!sourceAccount.getOwnerId().equals(request.getOwnerId())) {
+        if (!sourceAccount.getCustomerId().equals(request.getOwnerId())) {
             throw new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found");
         }
         if (!sourceAccount.getCurrency().equals(request.getBaseCurrency())) {
             throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, ApiCode.FX_ERR_007, "Source account currency mismatch");
         }
 
-        Account targetAccount = accountRepository.findByOwnerIdAndCurrency(request.getOwnerId(), request.getTargetCurrency())
+        Account targetAccount = accountRepository.findByCustomerIdAndCurrency(request.getOwnerId(), request.getTargetCurrency())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, ApiCode.FX_ERR_009, "Account not found"));
 
         //release xong trừ
@@ -173,6 +173,17 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         if (updatedCredit == 0) {
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, ApiCode.SYS_ERR_001, "Ledger posting failed");
         }
+
+        String holdId = "ENTRY-RELEASED-HOLD" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        Entry releasedHoldEntry = Entry.builder()
+                .entryId(holdId)
+                .txId(request.getTxId())
+                .accountNumberId(request.getAccountNumberId())
+                .type(EntryType.RELEASED_HOLD)
+                .amount(holdEntry.getAmount())
+                .currency(holdEntry.getCurrency())
+                .build();
+        entryRepository.save(releasedHoldEntry);
 
         //holdEntry.setStatus("RELEASED");
       //  entryRepository.save(holdEntry);
@@ -226,13 +237,13 @@ public class CoreBankingServiceImpl implements CoreBankingService {
                 .orElseThrow(() -> new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, ApiCode.SYS_ERR_001, "Ledger posting failed"));
 
         // Idempotency guard for compensation retries.
-        Entry existingRelease = entryRepository.findByTxIdAndType(request.getTxId(), EntryType.RELEASE)
+        Entry existingRelease = entryRepository.findByTxIdAndType(request.getTxId(), EntryType.RELEASED_HOLD)
                 .orElse(null);
         if (existingRelease != null) {
             return ReleaseHoldResponse.builder()
                     .holdId(request.getHoldId())
                     .txId(request.getTxId())
-                    .status("RELEASED")
+                    .status("RELEASED_HOLD")
                     .createdAt(existingRelease.getCreatedAt().toString())
                     .build();
         }
@@ -248,10 +259,10 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         }
 
         Entry releaseEntry = Entry.builder()
-                .entryId("ENTRY-RELEASE" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .entryId("ENTRY-RELEASED-HOLD" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .txId(request.getTxId())
                 .accountNumberId(request.getAccountNumberId())
-                .type(EntryType.RELEASE)
+                .type(EntryType.RELEASED_HOLD)
                 .currency(holdEntry.getCurrency())
                 .amount(holdEntry.getAmount())
                 .build();
@@ -260,7 +271,7 @@ public class CoreBankingServiceImpl implements CoreBankingService {
         return ReleaseHoldResponse.builder()
                 .holdId(request.getHoldId())
                 .txId(request.getTxId())
-                .status("RELEASED")
+                .status("RELEASED_HOLD")
                 .createdAt(LocalDateTime.now().toString())
                 .build();
     }

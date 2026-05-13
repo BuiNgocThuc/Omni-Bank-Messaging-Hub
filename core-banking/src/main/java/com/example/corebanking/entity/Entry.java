@@ -28,7 +28,7 @@ public class Entry {
     private String accountNumberId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, length = 10)
+    @Column(name = "type", nullable = false, length = 20)
     private EntryType type;
 
     @Column(name = "currency", nullable = false, length = 3)
