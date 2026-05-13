@@ -7,19 +7,21 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="account-ledger-service" />
         <module name="common" />
         <module name="sell-foreign-service" />
-        <module name="payment-gateway-service" />
         <module name="core-banking" />
         <module name="treasury-service" />
-        <module name="audit-log-service" />
         <module name="transaction-service" />
-        <module name="currency-exchange-service" />
         <module name="sell-foreign-processor-service" />
         <module name="notification-service" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="account-ledger-service" target="1.8" />
+      <module name="audit-log-service" target="1.8" />
+      <module name="currency-exchange-service" target="1.8" />
+      <module name="payment-gateway-service" target="1.8" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
