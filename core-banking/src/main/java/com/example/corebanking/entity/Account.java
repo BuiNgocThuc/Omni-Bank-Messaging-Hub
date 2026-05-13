@@ -19,7 +19,7 @@ public class Account {
     @Column(name = "account_number_id", updatable = false, nullable = false)
     private String accountNumberId;
 
-    @Column(name = "owner_id", nullable = false)
+    @Column(name = "customer_id", nullable = false)
     private String ownerId;
 
     @Column(name = "currency", nullable = false, length = 3)
