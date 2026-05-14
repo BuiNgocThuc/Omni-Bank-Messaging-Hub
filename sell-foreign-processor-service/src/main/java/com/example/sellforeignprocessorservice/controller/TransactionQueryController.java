@@ -24,19 +24,16 @@ public class TransactionQueryController {
     private final TransactionQueryService transactionQueryService;
 
     @GetMapping("/transactions/{txId}")
-    public ResponseEntity<ApiResponse<TransactionQueryResponse>> getTransactionResult(
-            @PathVariable String txId) {
+    public ResponseEntity<ApiResponse<TransactionQueryResponse>> getTransactionResult(@PathVariable("txId") String txId) {
 
-        log.info("Query transaction result for txId: {}", txId);
+        log.info("Query transaction result");
 
         UUID parsedTxId;
+
         try {
             parsedTxId = UUID.fromString(txId);
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(
-                    HttpStatus.BAD_REQUEST,
-                    "INVALID_REQUEST",
-                    "Invalid transaction ID format: " + txId
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Invalid transaction ID format: " + txId
             );
         }
 

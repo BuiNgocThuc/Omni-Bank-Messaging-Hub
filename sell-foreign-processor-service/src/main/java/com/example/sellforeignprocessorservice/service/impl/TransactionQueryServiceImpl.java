@@ -25,11 +25,7 @@ public class TransactionQueryServiceImpl implements TransactionQueryService {
     public TransactionQueryResponse getTransactionResult(UUID txId) {
 
         SellForeignTransaction transaction = transactionRepository.findById(txId)
-                .orElseThrow(() -> new BusinessException(
-                        HttpStatus.NOT_FOUND,
-                        "TX_NOT_FOUND",
-                        "Transaction not found: " + txId
-                ));
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "TX_NOT_FOUND", "Transaction not found: " + txId));
 
         TransactionQueryResponse.DetailResponse detailResponse = transactionDetailRepository.findByTxId(txId)
                 .map(detail -> TransactionQueryResponse.DetailResponse.builder()
