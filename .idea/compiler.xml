@@ -11,29 +11,18 @@
         <module name="sell-foreign-service" />
         <module name="core-banking" />
         <module name="treasury-service" />
-        <module name="transaction-service" />
         <module name="sell-foreign-processor-service" />
         <module name="notification-service" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
-      <module name="account-ledger-service" target="1.8" />
-      <module name="audit-log-service" target="1.8" />
-      <module name="currency-exchange-service" target="1.8" />
-      <module name="payment-gateway-service" target="1.8" />
-    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="account-ledger-service" options="" />
-      <module name="audit-log-service" options="" />
       <module name="common" options="" />
       <module name="core-banking" options="" />
-      <module name="currency-exchange-service" options="" />
-      <module name="payment-gateway-service" options="" />
+      <module name="notification-service" options="" />
       <module name="sell-foreign-processor-service" options="" />
       <module name="sell-foreign-service" options="" />
-      <module name="transaction-service" options="" />
       <module name="treasury-service" options="" />
     </option>
   </component>

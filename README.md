@@ -13,12 +13,12 @@ Hệ thống cung cấp nền tảng xử lý **giao dịch ngoại tệ** (**Fo
 
 ### 1.2 Service Map
 
-| Service                  | Responsibility                                                            |
-| ------------------------ | ------------------------------------------------------------------------- |
-| **SF Service**           | Receive request, validate basic request, get request to check idempotency |
-| **SF Processor Service** | Execute FX workflow                                                       |
-| **Treasury Service**     | Provide exchange rate                                                     |
-| **Core Service**         | Account validation, hold, ledger posting                                  |
+| Service                  | Responsibility                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| **SF Service**           | Receive request, validate basic request, check idempotency, push MQ (Gateway)           |
+| **SF Processor Service** | Execute FX workflow, store transaction result, expose GET transaction query API          |
+| **Treasury Service**     | Provide exchange rate                                                                   |
+| **Core Service**         | Account validation, hold, ledger posting                                                |
 
 ---
 
@@ -28,21 +28,20 @@ Hệ thống cung cấp nền tảng xử lý **giao dịch ngoại tệ** (**Fo
 > Xem sequence diagram đầy đủ tại: `sell-foreign-sequence-diagram.drawio`
 
 1. Client gửi yêu cầu đổi ngoại tệ
-2. SF Service validate request + get request để check idempotency
-3. generate tx_id để trả response  
+2. SF Service validate request + check idempotency
+3. Generate tx_id, save transaction (PENDING), trả response
 4. Push message vào MQ
 5. Trả API accepted 202
 6. SF Processor consume message
-7. insert transaction + transaction detail
-8. Check balance
-9. Create HOLD (ghi nợ sổ cái)
-10. Call back SF Processor
-11. SF Processor check tỉ giá qua treasury
-12. Treasury trả về rate_exchange cho SF Processor cập nhật
-13. SF Processor gọi core bank thực hiện quy trình cộng trừ tiền
-14. Sau khi hoàn tất core banking trả về SF Processor
-15. SF Processor Update transaction SUCCESS
-16. Call api notifications
+7. Init transaction (PROCESSING) + transaction detail
+8. Check balance + Create HOLD (ghi nợ sổ cái)
+9. SF Processor check tỉ giá qua Treasury
+10. Treasury trả về rate_exchange cho SF Processor cập nhật
+11. SF Processor gọi Core Banking thực hiện quy trình cộng trừ tiền
+12. Sau khi hoàn tất, Core Banking trả về SF Processor
+13. SF Processor Update transaction SUCCESS
+14. Publish NotificationEvent → Notification Service
+15. Client nhận thông báo → tự gọi GET /api/v1/fx/transactions/{tx_id} vào **SF Processor** để lấy kết quả
 
 
 ---
@@ -133,9 +132,11 @@ Hệ thống cung cấp nền tảng xử lý **giao dịch ngoại tệ** (**Fo
 
 ---
 
-### 4.2 Get Transaction Status (Notifications)
+### 4.2 Get Transaction Status
 
-- **Endpoint:** `GET /api/v1/fx/{tx_id}`
+- **Endpoint:** `GET /api/v1/fx/transactions/{tx_id}`
+- **Service:** SF Processor Service (port 8082)
+- **Lưu ý:** Client gọi API này sau khi nhận notification từ hệ thống, hoặc chủ động polling.
 
 #### Success Response — `200 OK`
 

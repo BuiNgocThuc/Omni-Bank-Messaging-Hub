@@ -1,10 +1,12 @@
 package com.example.sellforeignprocessorservice.controller;
 
 import com.example.common.config.api.ApiResponse;
-import com.example.sellforeignprocessorservice.dto.TransactionalResultResponse;
-import com.example.sellforeignprocessorservice.service.SellForeignProcessorService;
+import com.example.common.exception.BusinessException;
+import com.example.sellforeignprocessorservice.dto.TransactionQueryResponse;
+import com.example.sellforeignprocessorservice.service.TransactionQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,21 +16,31 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/processor/transactions")
+@RequestMapping("/api/v1/fx")
 @RequiredArgsConstructor
 @Slf4j
 public class TransactionQueryController {
 
-    private final SellForeignProcessorService processorService;
+    private final TransactionQueryService transactionQueryService;
 
-    @GetMapping("/{txId}")
-    public ResponseEntity<ApiResponse<TransactionalResultResponse>> getTransactionResult(@PathVariable("txId") String txId) {
+    @GetMapping("/transactions/{txId}")
+    public ResponseEntity<ApiResponse<TransactionQueryResponse>> getTransactionResult(
+            @PathVariable String txId) {
 
-        log.info("getTransactionResult begin");
+        log.info("Query transaction result for txId: {}", txId);
 
-        UUID parsedTxId = UUID.fromString(txId);
+        UUID parsedTxId;
+        try {
+            parsedTxId = UUID.fromString(txId);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_REQUEST",
+                    "Invalid transaction ID format: " + txId
+            );
+        }
 
-        TransactionalResultResponse result = processorService.getTransactionResult(parsedTxId);
+        TransactionQueryResponse result = transactionQueryService.getTransactionResult(parsedTxId);
 
         return ResponseEntity.ok(ApiResponse.success("SUCCESS", result));
     }

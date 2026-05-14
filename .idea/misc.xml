@@ -4,13 +4,8 @@
   <component name="MavenProjectsManager">
     <option name="originalFiles">
       <list>
-        <option value="$PROJECT_DIR$/common/pom.xml" />
-        <option value="$PROJECT_DIR$/payment-gateway-service/pom.xml" />
-        <option value="$PROJECT_DIR$/currency-exchange-service/pom.xml" />
-        <option value="$PROJECT_DIR$/account-ledger-service/pom.xml" />
         <option value="$PROJECT_DIR$/pom.xml" />
-        <option value="$PROJECT_DIR$/audit-log-service/pom.xml" />
-        <option value="$PROJECT_DIR$/transaction-service/pom.xml" />
+        <option value="$PROJECT_DIR$/common/pom.xml" />
         <option value="$PROJECT_DIR$/sell-foreign-service/pom.xml" />
         <option value="$PROJECT_DIR$/sell-foreign-processor-service/pom.xml" />
         <option value="$PROJECT_DIR$/treasury-service/pom.xml" />

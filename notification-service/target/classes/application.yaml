@@ -14,3 +14,4 @@ spring:
       simple:
         acknowledge-mode: manual
         prefetch: 1
+#b2b1e6a9-5f8c-9f8b-9c4a-2a6f9d3c7d88
