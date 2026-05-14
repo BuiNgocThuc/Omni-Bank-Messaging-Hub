@@ -14,6 +14,7 @@ import com.example.sellforeignprocessorservice.repository.TransactionRepository;
 import com.example.sellforeignprocessorservice.service.SellForeignProcessorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -30,6 +31,9 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
     private final TreasuryClient treasuryClient;
     private final CoreBankingClient coreBankingClient;
     private final NotificationEventPublisher notificationEventPublisher;
+
+    @Value("${key.throw-exception}")
+    private String IDEMPO_KEY_THROW_E;
 
     @Override
     public void processTransaction(SellForeignMessage message) {
@@ -95,9 +99,7 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
     }
 
     private TreasuryRateResponse getExchangeRate(SellForeignMessage message) {
-        if ("b2b1e6a9-5f8c-9f8b-9c4a-2a6f9d3c7d88".equals(message.getIdempotencyKey())) {
-            throw new RuntimeException("Forced exception at getExchangeRate for testing");
-        }
+
         TreasuryRateRequest rateRequest = TreasuryRateRequest.builder()
                 .txId(message.getTxId().toString())
                 .base(message.getBaseCurrency().name())
@@ -106,6 +108,11 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
 
         ExternalApiResponse<TreasuryRateResponse> rateResponse = treasuryClient.getRate(rateRequest);
         TreasuryRateResponse rateData = rateResponse.getData();
+
+        // cố tình để throw exception
+        if (IDEMPO_KEY_THROW_E.equals(message.getIdempotencyKey())) {
+            throw new RuntimeException("Forced exception at getExchangeRate for testing");
+        }
 
         log.info(
                 "Got rate [{}] for {}/{} timestamp: {}",
