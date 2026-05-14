@@ -41,49 +41,49 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
         SellForeignTransaction transaction = initTransaction(message);
         // Duplicate deliveries must not replay completed money movement.
         if (!(transaction.getStatus() == TransactionStatus.PROCESSING)) {
-            log.info("Skipping already terminal transaction [{}] with status [{}]", message.getTxId(), transaction.getStatus());
+            log.info("Skipping already terminal transaction [{}] with status [{}]", transaction.getTxId(), transaction.getStatus());
             return;
         }
-        initTransactionDetail(message);
+        initTransactionDetail(message,transaction);
         HoldResponse holdData = null;
         BigDecimal convertedAmount = null;
 
         try {
 
             //step1
-            holdData =  holdBalance(message);
+            holdData =  holdBalance(message,transaction);
 
             // Get exchange rate
-            TreasuryRateResponse rateData = getExchangeRate(message);
+            TreasuryRateResponse rateData = getExchangeRate(message,transaction);
 
             //caculate sau khi doi dc rate
             convertedAmount = calculateConvertedAmount(message, rateData);
 
             //update rate exchange
-            updateTransactionDetailWithRate(message.getTxId(),rateData.getRateExchange(),convertedAmount);
+            updateTransactionDetailWithRate(transaction.getTxId(),rateData.getRateExchange(),convertedAmount);
 
             //release data
-            releaseHoldAndCreateEntry(message, holdData, rateData);
+            releaseHoldAndCreateEntry(message, holdData, rateData,transaction);
 
             // Save success
-            markTransactionSuccess(transaction,message.getTxId());
-            log.info("Transaction [{}] completed successfully", message.getTxId());
+            markTransactionSuccess(transaction,transaction.getTxId());
+            log.info("Transaction [{}] completed successfully", transaction.getTxId());
 
-            publishSuccessEvent(message, convertedAmount);
+            publishSuccessEvent(message, convertedAmount,transaction);
 
 
         } catch (Exception e) {
-            log.error("Transaction [{}] failed: {}", message.getTxId(), e.getMessage(), e);
+            log.error("Transaction [{}] failed: {}", transaction.getTxId(), e.getMessage(), e);
 
             // If money was held, release it before marking the transaction failed.
-            compensateHoldIfNeeded(message, holdData);
+            compensateHoldIfNeeded(message, holdData,transaction);
             markTransactionFailed(transaction, message, e);
         }
     }
 
-    private HoldResponse holdBalance(SellForeignMessage message) {
+    private HoldResponse holdBalance(SellForeignMessage message, SellForeignTransaction transaction ) {
         HoldRequest holdRequest = HoldRequest.builder()
-                .txId(message.getTxId().toString())
+                .txId(transaction.getTxId().toString())
                 .accountNumberId(message.getAccountNumberId())
                 .ownerId(message.getOwnerId())
                 .currency(message.getBaseCurrency().name())
@@ -93,15 +93,15 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
         ExternalApiResponse<HoldResponse> holdResponse = coreBankingClient.checkAndHold(holdRequest);
         HoldResponse holdData = holdResponse.getData();
 
-        log.info("Hold success [{}] for tx [{}]", holdData.getHoldId(), message.getTxId());
+        log.info("Hold success [{}] for tx [{}]", holdData.getHoldId(),transaction.getTxId());
 
         return holdData;
     }
 
-    private TreasuryRateResponse getExchangeRate(SellForeignMessage message) {
+    private TreasuryRateResponse getExchangeRate(SellForeignMessage message, SellForeignTransaction transaction ) {
 
         TreasuryRateRequest rateRequest = TreasuryRateRequest.builder()
-                .txId(message.getTxId().toString())
+                .txId(transaction.getTxId().toString())
                 .base(message.getBaseCurrency().name())
                 .currencies(message.getTargetCurrency().name())
                 .build();
@@ -135,10 +135,11 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
     private ReleaseAndEntryResponse releaseHoldAndCreateEntry(
             SellForeignMessage message,
             HoldResponse holdData,
-            TreasuryRateResponse rateData
+            TreasuryRateResponse rateData,
+            SellForeignTransaction transaction
     ) {
         ReleaseAndEntryRequest releaseRequest = ReleaseAndEntryRequest.builder()
-                .txId(message.getTxId().toString())
+                .txId(transaction.getTxId().toString())
                 .holdId(holdData.getHoldId())
                 .accountNumberId(message.getAccountNumberId())
                 .ownerId(message.getOwnerId())
@@ -162,19 +163,12 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
     }
 
     private SellForeignTransaction initTransaction(SellForeignMessage message) {
-        log.info("Initializing transaction [{}]", message.getTxId());
 
-        // The API service may have already created this transaction.
-        SellForeignTransaction existingTransaction = transactionRepository.findById(message.getTxId())
-                .orElse(null);
-        if (existingTransaction != null) {
-            existingTransaction.setStatus(TransactionStatus.PROCESSING);
-            transactionRepository.save(existingTransaction);
-            return existingTransaction;
-        }
+        UUID txId = UUID.randomUUID();
+        log.info("Initializing transaction [{}]", txId);
 
         SellForeignTransaction transaction = SellForeignTransaction.builder()
-                .txId(message.getTxId())
+                .txId(txId)
                 .idempotencyKey(message.getIdempotencyKey())
                 .ownerId(message.getOwnerId())
                 .status(TransactionStatus.PROCESSING)
@@ -182,11 +176,11 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
 
         return transactionRepository.save(transaction);
     }
-    private TransactionDetail initTransactionDetail(SellForeignMessage message) {
-        return transactionDetailRepository.findByTxId(message.getTxId())
+    private TransactionDetail initTransactionDetail(SellForeignMessage message, SellForeignTransaction transaction) {
+        return transactionDetailRepository.findByTxId(transaction.getTxId())
                 .orElseGet(() -> {
                     TransactionDetail detail = TransactionDetail.builder()
-                            .txId(message.getTxId())
+                            .txId(transaction.getTxId())
                             .accountNumberId(message.getAccountNumberId())
                             .baseCurrency(message.getBaseCurrency())
                             .targetCurrency(message.getTargetCurrency())
@@ -197,22 +191,22 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
                 });
     }
 
-    private void compensateHoldIfNeeded(SellForeignMessage message, HoldResponse holdData) {
+    private void compensateHoldIfNeeded(SellForeignMessage message, HoldResponse holdData, SellForeignTransaction transaction) {
         if (holdData == null) {
             return;
         }
 
         try {
             coreBankingClient.releaseHold(ReleaseHoldRequest.builder()
-                    .txId(message.getTxId().toString())
+                    .txId(transaction.getTxId().toString())
                     .holdId(holdData.getHoldId())
                     .accountNumberId(message.getAccountNumberId())
                     .build());
-            log.info("Released hold [{}] for failed tx [{}]", holdData.getHoldId(), message.getTxId());
+            log.info("Released hold [{}] for failed tx [{}]", holdData.getHoldId(), transaction.getTxId());
         } catch (Exception compensationError) {
             log.error("Failed to compensate hold [{}] for tx [{}]: {}",
                     holdData.getHoldId(),
-                    message.getTxId(),
+                    transaction.getTxId(),
                     compensationError.getMessage(),
                     compensationError);
         }
@@ -223,8 +217,8 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
             SellForeignMessage message,
             Exception e
     ) {
-        TransactionDetail detail = transactionDetailRepository.findByTxId(message.getTxId())
-                .orElseGet(() -> initTransactionDetail(message));
+        TransactionDetail detail = transactionDetailRepository.findByTxId(transaction.getTxId())
+                .orElseGet(() -> initTransactionDetail(message,transaction));
 
         detail.setFailureReason(e.getMessage());
         detail.setCompletedAt(LocalDateTime.now());
@@ -233,7 +227,7 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
         transaction.setStatus(TransactionStatus.FAILED);
         transactionRepository.save(transaction);
 
-        publishFailedEvent(message, e);
+        publishFailedEvent(message, e,transaction);
     }
 
 
@@ -269,11 +263,12 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
 
     private void publishSuccessEvent(
             SellForeignMessage message,
-            BigDecimal convertedAmount
+            BigDecimal convertedAmount,
+            SellForeignTransaction transaction
     ) {
         notificationEventPublisher.publishTransactionResult(
                 NotificationEvent.builder()
-                        .txId(message.getTxId().toString())
+                        .txId(transaction.getTxId().toString())
                         .ownerId(message.getOwnerId())
                         .status("SUCCESS")
                         .baseCurrency(message.getBaseCurrency().name())
@@ -287,11 +282,12 @@ public class SellForeignProcessorServiceImpl implements SellForeignProcessorServ
 
     private void publishFailedEvent(
             SellForeignMessage message,
-            Exception e
+            Exception e,
+            SellForeignTransaction transaction
     ) {
         notificationEventPublisher.publishTransactionResult(
                 NotificationEvent.builder()
-                        .txId(message.getTxId().toString())
+                        .txId(transaction.getTxId().toString())
                         .ownerId(message.getOwnerId())
                         .status("FAILED")
                         .baseCurrency(message.getBaseCurrency().name())

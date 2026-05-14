@@ -12,8 +12,8 @@ import lombok.Setter;
 @Builder
 public class SellForeignTransactionResponse {
 
-    @JsonProperty("tx_id")
-    private String txId;
+//    @JsonProperty("tx_id")
+//    private String txId;
 
     private String message;
 }

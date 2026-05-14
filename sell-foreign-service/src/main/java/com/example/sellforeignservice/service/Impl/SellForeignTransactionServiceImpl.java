@@ -38,20 +38,19 @@ public class SellForeignTransactionServiceImpl implements SellForeignTransaction
 
         validateRequest(request);
 
-        UUID txId = UUID.randomUUID();
 
         // validate -> generate txId -> save transaction PROCESSING -> publish MQ
         // lưu tráanscation
-        SellForeignTransaction transaction = SellForeignTransaction.builder()
-                .txId(txId)
-                .idempotencyKey(request.getIdempotencyKey())
-                .ownerId(request.getCustomerId())
-                .status(TransactionStatus.PENDING)
-                .build();
-        transactionRepository.save(transaction);
+//        SellForeignTransaction transaction = SellForeignTransaction.builder()
+//                .txId(txId)
+//                .idempotencyKey(request.getIdempotencyKey())
+//                .ownerId(request.getCustomerId())
+//                .status(TransactionStatus.PENDING)
+//                .build();
+//        transactionRepository.save(transaction);
 
         SellForeignMessage message = SellForeignMessage.builder()
-                .txId(txId)
+//                .txId(txId)
                 .idempotencyKey(request.getIdempotencyKey())
                 .ownerId(request.getCustomerId())
                 .accountNumberId(request.getAccountNumberId())
@@ -74,10 +73,10 @@ public class SellForeignTransactionServiceImpl implements SellForeignTransaction
                     "Message queue failed"
             );
         }
-        log.info("Published message [{}] to queue with routing key [{}]", txId, RabbitMQConstants.ROUTING_PROCESSOR);
+      //  log.info("Published message [{}] to queue with routing key [{}]", txId, RabbitMQConstants.ROUTING_PROCESSOR);
 
         SellForeignTransactionResponse responseData = SellForeignTransactionResponse.builder()
-                .txId(txId.toString())
+            //    .txId(txId.toString())
                 .message("Transaction is being processed")
                 .build();
 

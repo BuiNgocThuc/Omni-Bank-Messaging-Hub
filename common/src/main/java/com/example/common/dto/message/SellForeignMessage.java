@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter
 @Setter
 public class SellForeignMessage implements Serializable {
-    private UUID txId;
+//    private UUID txId;
     private String idempotencyKey;
     private String ownerId;
     private String accountNumberId;

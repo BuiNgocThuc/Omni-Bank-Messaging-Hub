@@ -55,7 +55,7 @@ public class CurrencyExchangeServiceImpl implements ICurrencyExchangeService {
 
         TreasuryRateResponse treasuryRateResponse = TreasuryRateResponse
                 .builder()
-                .txId(request.getTxId())
+              //  .txId(request.getTxId())
                 .target(request.getCurrencies())
                 .base(request.getBase())
                 .rateExchange(rate)

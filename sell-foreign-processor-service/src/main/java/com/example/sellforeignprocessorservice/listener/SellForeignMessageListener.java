@@ -22,15 +22,15 @@ public class SellForeignMessageListener {
     public void onMessage(SellForeignMessage message,
                           Channel channel,
                           @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
-        log.info("Received message for tx [{}]", message.getTxId());
+      //  log.info("Received message for tx [{}]", message.getTxId());
 
         try {
             processorService.processTransaction(message);
             channel.basicAck(deliveryTag, false);
-            log.info("Acknowledged message for tx [{}]", message.getTxId());
+        //    log.info("Acknowledged message for tx [{}]", message.getTxId());
 
         } catch (Exception e) {
-            log.error("Failed to process tx [{}]: {}", message.getTxId(), e.getMessage(), e);
+    //        log.error("Failed to process tx [{}]: {}", message.getTxId(), e.getMessage(), e);
             try {
                 // requeue = false → send to DLQ if configured, otherwise discard
                 channel.basicNack(deliveryTag, false, false);
