@@ -1,0 +1,47 @@
+server:
+  port: 8082
+spring:
+  application:
+    name: sell-foreign-processor-service
+
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1521/FREEPDB1
+    username: sell_foreign_user
+    password: sell_foreign123
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.OracleDialect
+        format_sql: true
+        default_schema: SELL_FOREIGN_USER
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 1
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+
+feign:
+  client:
+    treasury:
+      url: http://localhost:8083
+    core-banking:
+      url: http://localhost:8084
+key:
+  throw-exception: b2b1e6a9-5f8c-9f8b-9c4a-2a6f9d3c7d99

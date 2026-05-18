@@ -1,0 +1,10 @@
+server:
+  port: 8083
+spring:
+  application:
+    name: treasury-service
+
+fxrates:
+  api:
+    base-url: https://api.fxratesapi.com
+    timeout-seconds: 10

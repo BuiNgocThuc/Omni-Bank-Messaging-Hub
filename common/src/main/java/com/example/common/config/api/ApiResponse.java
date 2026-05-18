@@ -1,43 +1,75 @@
 package com.example.common.config.api;
 
-
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@Getter
-@Setter
+@Data
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class ApiResponse<T> {
 
-    private boolean success;
-    private String code;
+    @JsonFormat(
+            shape = JsonFormat.Shape.STRING,
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            timezone = "UTC"
+    )
+    private Instant timestamp;
+
+    private String status;
+
     private String message;
+
     private T data;
-    private LocalDateTime timestamp;
-    private String path;
 
-    public ApiResponse(boolean success, String code, String message, T data, String path) {
-        this.success = success;
-        this.code = code;
-        this.message = message;
-        this.data = data;
-        this.timestamp = LocalDateTime.now();
-        this.path = path;
+    private ErrorData error;
+
+    public static <T> ApiResponse<T> success(
+            String status,
+            T data
+    ) {
+        return ApiResponse.<T>builder()
+                .timestamp(Instant.now())
+                .status(status)
+                .data(data)
+                .build();
     }
 
-    public static <T> ApiResponse<T> success(String code, String message, T data, String path) {
-        return new ApiResponse<>(true, code, message, data, path);
+    public static ApiResponse<Void> error(
+            String message,
+            String code
+    ) {
+        return ApiResponse.<Void>builder()
+                .timestamp(Instant.now())
+                .status("ERROR")
+                .error(new ErrorData(code, message))
+                .build();
     }
 
-    public static <T> ApiResponse<T> error(String code, String message, String path) {
-        return new ApiResponse<>(false, code, message, null, path);
+    public static ApiResponse<Void> error(
+            String message,
+            String code,
+            String detail
+    ) {
+        return ApiResponse.<Void>builder()
+                .timestamp(Instant.now())
+                .status("ERROR")
+                .error(new ErrorData(code, detail))
+                .build();
     }
 
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ErrorData {
 
+        private String code;
+
+        private String message;
+    }
 }
